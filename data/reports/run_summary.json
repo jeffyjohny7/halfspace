@@ -1,0 +1,23 @@
+{
+  "elapsed_s": 77.1,
+  "matches": 1037,
+  "events": 2166704,
+  "champion": "Lowmarsh Harriers",
+  "champion_points": 79,
+  "relegated": [
+    "Ashbrook Vale Rovers",
+    "Cragmouth County",
+    "Highcrest Rangers"
+  ],
+  "promoted": [
+    "Marrowgate Borough",
+    "Fennholt FC",
+    "Pellmoor Borough"
+  ],
+  "showcase": "Dunvarrow Borough vs Penmarrow Athletic (round 11, variant 8)",
+  "truths": {
+    "2025-26": 99,
+    "2026-27": 65
+  },
+  "realism_checks_passed": "27/27"
+}
