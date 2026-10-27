@@ -1,14 +1,4 @@
-"""The Fan Desk: answers fans' questions in the app, checked before they are shown.
-
-One agent with the match-intelligence MCP tools, minus the broadcast's live tools. For today's match it has
-two tools of its own that stop at the moment the fan has reached in the replay (FAN_CLOCK): a fan at 30'
-can ask who scored and never learn what happens later; a fan who hasn't pressed play learns nothing.
-Every answer goes through the same Verifier as the broadcast graphics: each number must
-appear in a tool result the agent saw (or in the question / earlier verified answers),
-no betting language, and the right script for Malayalam or Hindi. A rejected answer is
-rewritten once with the problems listed; if it still fails, the fan gets a plain
-"couldn't check that" message, never an unchecked answer.
-"""
+"""The Fan Desk: answers fans' questions in the app, checked before they are shown."""
 
 from __future__ import annotations
 
@@ -160,8 +150,8 @@ def desk_tool(data_dir: str):
 class FanDesk:
     def __init__(self, client, tools: list, verifier: Verifier, reasoning_effort: str | None = None,
                  timeout_s: float = 150.0, analyst=None, fans=None, memory=None):
-        """analyst: give it to enable the today's-match tools (clamped to the fan's replay clock).
-        fans: a FanStore, for answers made personal (FanContext provider); memory: a MemoryKeeper, to learn
+        """analyst: give it to enable the today's-match tools (clamped to the fan's replay clock). fans: a
+        FanStore, for answers made personal (FanContext provider); memory: a MemoryKeeper, to learn
         football preferences from what fans who switched memory on say."""
         from agent_framework import Agent
 
@@ -211,9 +201,9 @@ class FanDesk:
 
     async def answer(self, question: str, language: str = "en", history: list[dict] | None = None,
                      clock_s: float | None = None, fan_id: str | None = None) -> dict[str, Any]:
-        """clock_s: how far the fan has watched today's match (None or 0: not started).
-        fan_id: the fan's profile id; their brief shapes the answer and, with memory on, the Memory Keeper
-        reads the question for preferences at the same time."""
+        """clock_s: how far the fan has watched today's match (None or 0: not started). fan_id: the fan's
+        profile id; their brief shapes the answer and, with memory on, the Memory Keeper reads the question
+        for preferences at the same time."""
         from .fans import FAN_BRIEF, fan_brief
         language = language if language in LANGUAGES else "en"
         prof = self.fans.load(fan_id) if (self.fans is not None and fan_id) else None

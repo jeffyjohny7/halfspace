@@ -1,6 +1,5 @@
-/* Anek (SIL Open Font License, assets/fonts/OFL.txt): one design across Latin, Malayalam and Devanagari.
-   Arabic comes from Noto Kufi Arabic (OFL, assets/fonts/OFL-noto-kufi-arabic.txt), declared first so the
-   Anek faces win any shared characters. */
+/* Anek (SIL Open Font License, assets/fonts/OFL.txt): one design across Latin, Malayalam and
+   Devanagari. */
 @font-face { font-family: "Anek"; src: url(assets/fonts/noto-kufi-arabic.woff2) format("woff2-variations");
   font-weight: 100 800; font-stretch: 75% 125%; font-display: swap;   /* same descriptors, or Chrome won't merge the faces */
   unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
@@ -72,7 +71,7 @@ button { font: inherit; color: inherit; }
 
 .cond { font-variation-settings: "wdth" 75; }
 
-/* ---------------------------------------------------------------- top bar */
+/* top bar */
 .topbar {
   display: flex; align-items: center; gap: 28px;
   padding: 12px var(--gutter);
@@ -91,7 +90,7 @@ button { font: inherit; color: inherit; }
 .tabs a:hover { color: var(--chalk); }
 .tabs a[aria-current="page"] { color: var(--chalk); box-shadow: inset 0 -2px 0 var(--chalk); border-radius: 0; }
 
-/* ---------------------------------------------------------------- scoreboard */
+/* scoreboard */
 .scoreboard {
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px;
   padding: 12px var(--gutter) 10px;
@@ -113,7 +112,7 @@ button { font: inherit; color: inherit; }
 .goal-flash .goals { animation: flash 1.2s ease-out 1; }
 @keyframes flash { 0% { text-shadow: 0 0 0 transparent; } 20% { text-shadow: 0 0 28px var(--chalk); } 100% { text-shadow: 0 0 0 transparent; } }
 
-/* ---------------------------------------------------------------- match layout */
+/* match layout */
 .match { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 0; border-top: 1px solid var(--line); }
 .stage { position: relative; padding: 18px var(--gutter) 22px; border-right: 1px solid var(--line); min-width: 0; }
 .rail { padding: 18px 22px 22px; display: flex; flex-direction: column; gap: 26px; min-width: 0; }
@@ -167,7 +166,7 @@ button { font: inherit; color: inherit; }
 .why ul { margin: 6px 0 0; padding-left: 18px; }
 .why li { margin: 2px 0; }
 
-/* ---------------------------------------------------------------- rail: calls and numbers */
+/* rail: calls and numbers */
 .calls { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
 .call { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; }
 .call .mark { width: 22px; height: 22px; margin-top: 1px; }
@@ -200,7 +199,7 @@ button { font: inherit; color: inherit; }
 .feed button { all: unset; cursor: pointer; display: block; }
 .feed button:focus-visible { outline: 2px solid var(--chalk); }
 
-/* ---------------------------------------------------------------- controls */
+/* controls */
 .controls { border-top: 1px solid var(--line); padding: 10px var(--gutter) 12px; display: grid; gap: 8px;
   background: color-mix(in srgb, var(--turf-0) 94%, transparent); backdrop-filter: blur(8px);
   position: sticky; bottom: 0; z-index: 4; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
@@ -239,7 +238,7 @@ h1:lang(ar), h2:lang(ar), h3:lang(ar), .h:lang(ar) { line-height: 1.45; }
 .timeline .head { fill: var(--chalk); }
 .timeline text { fill: var(--chalk-3); font-size: 10px; font-family: var(--font); }
 
-/* ---------------------------------------------------------------- before kick-off (scroll story) */
+/* before kick-off (scroll story) */
 .story { max-width: 1120px; margin: 0 auto; padding: 0 var(--gutter) 80px; }
 .hero { position: relative; min-height: min(78vh, 720px); display: grid; align-items: end; padding: 48px var(--gutter) 40px;
   margin: 0 calc(50% - 50vw); overflow: hidden; }
@@ -287,7 +286,7 @@ h1:lang(ar), h2:lang(ar), h3:lang(ar), .h:lang(ar) { line-height: 1.45; }
   font-weight: 600; border: 1.5px solid var(--chalk); background: var(--chalk); color: var(--turf-0); cursor: pointer; }
 .btn.ghost { background: none; color: var(--chalk); }
 
-/* ---------------------------------------------------------------- players */
+/* players */
 .players { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 60px); }
 .squads { border-right: 1px solid var(--line); padding: 18px 0; overflow-y: auto; max-height: calc(100vh - 60px); position: sticky; top: 57px; }
 .squads h2 { font-size: 14px; color: var(--chalk-2); font-weight: 500; margin: 14px 22px 6px; }
@@ -324,7 +323,7 @@ h1:lang(ar), h2:lang(ar), h3:lang(ar), .h:lang(ar) { line-height: 1.45; }
 .notes li.weakness::before { background: var(--away-ink); }
 .season-toggle { display: flex; gap: 2px; margin-bottom: 10px; }
 
-/* ---------------------------------------------------------------- full time */
+/* full time */
 .ft { max-width: 1120px; margin: 0 auto; padding: 30px var(--gutter) 80px; }
 .ft-score { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: center; padding: 30px 0; }
 .ft-score .goals { font-size: clamp(64px, 10vw, 120px); font-weight: 750; font-variation-settings: "wdth" 75; line-height: 0.9; }
@@ -338,7 +337,7 @@ h1:lang(ar), h2:lang(ar), h3:lang(ar), .h:lang(ar) { line-height: 1.45; }
 .verdict .res { color: var(--chalk-2); font-size: 14px; }
 .potm { display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center; }
 
-/* ---------------------------------------------------------------- ask */
+/* ask */
 .ask { max-width: 820px; margin: 0 auto; padding: 30px var(--gutter) 140px; }
 .ask h1 { font-size: clamp(30px, 4vw, 44px); line-height: 1.05; margin: 0 0 8px; font-variation-settings: "wdth" 78; }
 .ask .lede { color: var(--chalk-2); margin: 0 0 22px; max-width: 60ch; }
@@ -358,7 +357,7 @@ h1:lang(ar), h2:lang(ar), h3:lang(ar), .h:lang(ar) { line-height: 1.45; }
   color: var(--chalk); font: inherit; }
 .composer select { background: var(--turf-1); border: 1px solid var(--line); border-radius: 999px; padding: 0 12px; color: var(--chalk); font: inherit; }
 
-/* ---------------------------------------------------------------- responsive */
+/* responsive */
 @media (max-width: 1000px) {
   .match { grid-template-columns: 1fr; }
   .stage { border-right: 0; padding-bottom: 8px; }
@@ -394,7 +393,7 @@ h1:lang(ar), h2:lang(ar), h3:lang(ar), .h:lang(ar) { line-height: 1.45; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
-/* ---------------------------------------------------------------- match ratings */
+/* match ratings */
 .rt { font-weight: 700; font-variation-settings: "wdth" 80; font-size: 14px; text-align: center; border-radius: 5px;
   padding: 1px 0; color: var(--turf-0); font-variant-numeric: tabular-nums; }
 .rt.none { background: none; }
@@ -424,7 +423,7 @@ h1:lang(ar), h2:lang(ar), h3:lang(ar), .h:lang(ar) { line-height: 1.45; }
 .rated .why-top { grid-column: 1; grid-row: 2; color: var(--chalk-3); font-size: 13px; }
 .rated .rt { grid-column: 2; grid-row: 1 / 3; font-size: 18px; padding: 6px 0; }
 
-/* ---------------------------------------------------------------- squads (player tiles) */
+/* squads (player tiles) */
 .squads-page { max-width: 1180px; margin: 0 auto; padding: 22px var(--gutter) 80px; }
 .squads-page > .lede { color: var(--chalk-2); margin: 0 0 8px; max-width: 70ch; }
 .squad h2 { display: flex; align-items: center; gap: 12px; font-size: clamp(24px, 3vw, 32px); margin: 30px 0 4px;
@@ -447,7 +446,7 @@ h1:lang(ar), h2:lang(ar), h3:lang(ar), .h:lang(ar) { line-height: 1.45; }
 .ptile.out .ph img { filter: grayscale(1); opacity: 0.6; }
 .ptile.out .ps { color: var(--rt-poor); }
 
-/* ---------------------------------------------------------------- player card (dialog) */
+/* player card (dialog) */
 html.modal-open { overflow: hidden; }
 dialog.pcard { padding: 0; border: 0; background: transparent; width: min(980px, 94vw); max-width: none;
   max-height: 92vh; color: var(--ink); overflow: visible; }
@@ -548,7 +547,7 @@ dialog.pcard[open] .pc { animation: card-in 0.28s cubic-bezier(.2, .8, .2, 1) 1;
 }
 @media (prefers-reduced-motion: reduce) { dialog.pcard[open] .pc { animation: none; } .ptile { transition: none; } }
 
-/* ---------------------------------------------------------------- match centre tabs */
+/* match centre tabs */
 .mtabs { display: flex; gap: 4px; margin: -6px 0 14px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
 .mtabs::-webkit-scrollbar { display: none; }
 .mtabs button { border: 0; background: none; padding: 8px 12px 10px; cursor: pointer; color: var(--chalk-2); font-weight: 500; white-space: nowrap; }

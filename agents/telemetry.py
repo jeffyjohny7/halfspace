@@ -1,19 +1,4 @@
-"""Tracing in Microsoft Foundry.
-
-Agent Framework already emits OpenTelemetry spans for every workflow, executor, agent run,
-model call and tool call. enable_foundry_tracing() sends them to the Application Insights
-resource connected to the Foundry project, so each broadcast check-in (and each Ask
-question) shows up in the Foundry portal's Tracing page as one trace: Gather -> Tactical
-Analyst -> Director -> Fan Lens <-> Verifier -> Publisher, with timings, tokens and tool calls.
-
-annotate() adds Halfspace's own facts to the current span: which cue, how many drafts the
-Verifier rejected, whether the safe template took over. Without tracing it does nothing.
-
-One-time setup: in the Foundry portal, open the project's Tracing page and connect (or
-create) an Application Insights resource. Then run with --trace (or HALFSPACE_TRACE=1).
-Prompts, replies and tool results stay out of the traces unless you ask for them with
---trace-content: fine for this synthetic league, not for real people's questions.
-"""
+"""Tracing in Microsoft Foundry."""
 
 from __future__ import annotations
 

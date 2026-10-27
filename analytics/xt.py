@@ -1,16 +1,4 @@
-"""Expected threat (xT), learned from the league's own event data.
-
-xT(cell) is the probability that possession of the ball in that cell ends in a
-goal within the next few actions. It is found by value iteration
-(Karun Singh's formulation):
-
-    xT(z) = s(z) * g(z) + m(z) * sum_z' T(z -> z') * xT(z')
-
-s = share of actions in z that are shots, g = goal rate of those shots,
-m = share that are moves (passes, carries, take-ons), T = where successful
-moves go. Failed moves add no value, so risky areas are valued correctly.
-Coordinates are in the acting team's frame (attacking toward x = 105).
-"""
+"""Expected threat (xT), learned from the league's own event data."""
 
 from __future__ import annotations
 

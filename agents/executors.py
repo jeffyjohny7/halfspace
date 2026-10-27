@@ -1,11 +1,4 @@
-"""Workflow executors: one per member of the broadcast team.
-
-LLM agents:   Scout, Tactical Analyst, Fan Lens, Recap   (Microsoft Agent Framework agents
-              on Foundry, reaching data only through the MCP server or given facts)
-Code agents:  Gather (stats engine), Director, Verifier, Brief/Recap checks, Publisher
-
-Messages are plain dataclasses; the shared BroadcastState lives on the Team object.
-"""
+"""Workflow executors: one per member of the broadcast team."""
 
 import asyncio
 import json
@@ -27,7 +20,7 @@ from .telemetry import annotate
 from .verifier import DEFAULT_LIMITS, LIMITS, tidy_text, trim_to_fit
 
 
-# ---------------------------------------------------------------------------- messages
+# Messages
 
 @dataclass
 class Tick:
@@ -90,7 +83,7 @@ def _iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-# ---------------------------------------------------------------------------- live: gather
+# Live: gather
 
 class Gather(Executor):
     """Stats engine: turns the feed into candidate items with checkable facts."""
@@ -113,7 +106,7 @@ class Gather(Executor):
         await ctx.send_message(Gathered(tick.clock_s, cands))
 
 
-# ---------------------------------------------------------------------------- live: analyst
+# Live: analyst
 
 def analyst_prompt(team: Team, clock_s: float, cands: list[Candidate]) -> str:
     st = team.data.live_state(clock_s)
@@ -177,7 +170,7 @@ class TacticalAnalyst(Executor):
         await ctx.send_message(Reading(msg.clock_s, msg.candidates, evidence))
 
 
-# ---------------------------------------------------------------------------- live: director
+# Live: director
 
 class Director(Executor):
     """Code agent: what goes on screen, when, for whom."""
@@ -199,7 +192,7 @@ class Director(Executor):
             await ctx.send_message(RenderJob(d, phase="live"))
 
 
-# ---------------------------------------------------------------------------- fan lens (all phases)
+# Fan lens (all phases)
 
 def _limits(lang: str) -> tuple[int, int]:
     return LIMITS.get(lang, DEFAULT_LIMITS)
@@ -282,7 +275,7 @@ class FanLens(Executor):
         await ctx.send_message(job)
 
 
-# ---------------------------------------------------------------------------- verifier (all phases)
+# Verifier (all phases)
 
 class VerifierExec(Executor):
     """Code agent: checks numbers, names, language, safety and length; sends rewrites back."""
@@ -339,7 +332,7 @@ class VerifierExec(Executor):
         await ctx.send_message(job)
 
 
-# ---------------------------------------------------------------------------- publisher (all phases)
+# Publisher (all phases)
 
 class Publisher(Executor):
     """Writes each verified cue to the broadcast feed."""
@@ -376,7 +369,7 @@ class Publisher(Executor):
         await ctx.yield_output(cue)
 
 
-# ---------------------------------------------------------------------------- pre-match
+# Pre-match
 
 def scout_prompt(team: Team, draft: BriefDraft | None) -> str:
     fx = team.state.matchup["fixture"]
@@ -487,7 +480,7 @@ class BriefCues(Executor):
             await ctx.send_message(RenderJob(draft, phase="prematch"))
 
 
-# ---------------------------------------------------------------------------- post-match
+# Post-match
 
 def recap_prompt(team: Team, d: RecapDraft) -> str:
     lines = ["Full-time fact sheet:"] + [f"- {f}" for f in d.facts]

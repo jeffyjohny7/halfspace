@@ -112,7 +112,7 @@ function clockText(clock) {
   return minuteLabel(minute, periodAt(clock));
 }
 
-// ------------------------------------------------------------------ render
+// Render
 
 export function renderMatch(main, S) {
   const d = S.data;
@@ -218,7 +218,7 @@ function drawPlay(main) {
   b.setAttribute("aria-label", S.playing ? "Pause" : "Play");
 }
 
-// ------------------------------------------------------------------ tick
+// Tick
 
 export function tickMatch(main, S) {
   if (!ctx) return;
@@ -306,14 +306,24 @@ function drawGraphic(main, force) {
           Checked</button></div>
       <h3 ${langAttrs(v.hl)}>${esc(v.headline)}</h3>
       <p ${langAttrs(v.bl)}>${esc(v.body)}</p>
-      ${S.why ? `<div class="why">Written from the match data below; every number and name on this graphic was checked against it${
-        rejected ? `, and ${rejected} draft${rejected > 1 ? "s were" : " was"} sent back before this one` : ""}${v.source === "template" ? ". This is the plain version, used when a written one didn't pass" : ""}.
+      ${S.why ? `<div class="why">${esc(madeBy(cue, v))} Every number and name on it was checked against the match data below${
+        rejected ? `, and ${rejected} draft${rejected > 1 ? "s were" : " was"} sent back before this one` : ""}.
         <ul>${cue.facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul></div>` : ""}
     </article>
     ${S.clock >= S.data.match.end ? `<div class="cta-row"><a class="btn" href="#/match/full-time">See full time</a></div>` : ""}`;
   if (!isNew) slot.querySelector(".graphic").style.animation = "none";
   slot.querySelector("#why").addEventListener("click", () => { S.why = !S.why; drawGraphic(main, true); });
   if (isNew) drawRing(main, cue);
+}
+
+// Which agents made this graphic, for the "Checked" panel.
+function madeBy(cue, v) {
+  const from = cue.phase === "prematch" ? "From the Scout's brief"
+    : cue.phase === "postmatch" ? "From the Recap writer's report"
+    : "Spotted by the Tactical Analyst and put on screen by the Director";
+  return v.source === "template"
+    ? `${from}. The Fan Lens's version didn't pass, so this is the plain template, checked by the Verifier.`
+    : `${from}, written by the Fan Lens for this view, checked by the Verifier.`;
 }
 
 function drawRing(main, cue) {
@@ -415,7 +425,7 @@ function pinCue(main, cue) {
   main.querySelector("#gslot").scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
-// ------------------------------------------------------------------ timeline
+// Timeline
 
 function drawTimeline(main) {
   const d = S.data, end = d.match.end, el = main.querySelector("#timeline");

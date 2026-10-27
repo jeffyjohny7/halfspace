@@ -53,10 +53,8 @@ EVENT_TYPES = ["pass", "carry", "take_on", "shot", "dispossessed", "tackle", "in
                "gk_save", "block"]
 
 
-
 def portrait_kits() -> dict[str, str]:
-    """player_id -> the club whose kit he wears in his portrait (web/assets/players/kits.json).
-    A portrait is shown only while he plays for that club, so a transfer never shows the old shirt."""
+    """player_id -> the club whose kit he wears in his portrait (web/assets/players/kits.json)."""
     folder = ROOT / "web" / "assets" / "players"
     kits = json.loads((folder / "kits.json").read_text(encoding="utf-8")) if (folder / "kits.json").exists() else {}
     return {pid: club for pid, club in kits.items() if (folder / f"{pid}.webp").exists()}

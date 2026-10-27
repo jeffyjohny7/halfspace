@@ -1,8 +1,4 @@
-"""Fictional names for the league universe.
-
-Everything here is invented: town names, club suffixes, stadiums and player
-surnames are built so they do not point at real clubs, players or trademarks.
-"""
+"""Fictional names for the league universe."""
 
 from __future__ import annotations
 

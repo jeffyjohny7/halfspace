@@ -1,6 +1,4 @@
 // Heat maps for the player card: soft blobs on a canvas, coloured pale yellow to red.
-// Coordinates are in the player's attacking frame (x 0-105 toward the goal he attacks, y 0-68
-// from his right touchline), drawn so he always attacks to the right.
 
 const L = 105, W = 68;
 let palette = null;

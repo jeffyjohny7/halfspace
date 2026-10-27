@@ -1,15 +1,4 @@
-"""Batch layer: turn raw events into compact, query-ready tables.
-
-Outputs (data/derived/):
-  xt_grid.json        expected-threat grid learned from the previous season
-  shots.parquet       every shot and own goal with phase, assist, venue, game state
-  player_match.parquet  one row per player per match (counts; per-90s derived later)
-  team_match.parquet    one row per team per match
-  refs.parquet        example event references per subject and kind (evidence)
-  player_ratings.parquet  every player's match rating in every match (rating.py)
-
-Everything here reads data/public only.
-"""
+"""Batch layer: turn raw events into compact, query-ready tables."""
 
 from __future__ import annotations
 
@@ -60,9 +49,7 @@ def zone(x: pd.Series, y: pd.Series) -> pd.Series:
     return pd.Series(np.char.add(np.char.add(third.astype(str), ":"), chan.astype(str)), index=x.index)
 
 
-# ---------------------------------------------------------------------------
 # Per-event enrichment
-# ---------------------------------------------------------------------------
 
 def enrich(ev: pd.DataFrame, grid: np.ndarray, matches: pd.DataFrame) -> pd.DataFrame:
     ev = ev.sort_values(["match_id", "event_id"], kind="stable").reset_index(drop=True)
@@ -95,9 +82,7 @@ def enrich(ev: pd.DataFrame, grid: np.ndarray, matches: pd.DataFrame) -> pd.Data
     return ev
 
 
-# ---------------------------------------------------------------------------
 # Shots, goals and assists
-# ---------------------------------------------------------------------------
 
 def build_shots(ev: pd.DataFrame, season: str, matches: pd.DataFrame) -> pd.DataFrame:
     t = ev.t
@@ -159,9 +144,7 @@ def build_shots(ev: pd.DataFrame, season: str, matches: pd.DataFrame) -> pd.Data
     return out.reset_index(drop=True)
 
 
-# ---------------------------------------------------------------------------
 # Player-match table
-# ---------------------------------------------------------------------------
 
 def build_player_match(ev: pd.DataFrame, shots: pd.DataFrame, lineups: pd.DataFrame, season: str,
                        matches: pd.DataFrame) -> pd.DataFrame:
@@ -285,9 +268,7 @@ def build_player_match(ev: pd.DataFrame, shots: pd.DataFrame, lineups: pd.DataFr
     return out.reset_index(drop=True)
 
 
-# ---------------------------------------------------------------------------
 # Team-match table
-# ---------------------------------------------------------------------------
 
 def build_team_match(ev: pd.DataFrame, shots: pd.DataFrame, matches: pd.DataFrame, season: str) -> pd.DataFrame:
     mm = matches[matches.season == season]
@@ -399,9 +380,7 @@ def build_team_match(ev: pd.DataFrame, shots: pd.DataFrame, matches: pd.DataFram
     return tm
 
 
-# ---------------------------------------------------------------------------
 # Evidence references
-# ---------------------------------------------------------------------------
 
 def build_refs(ev: pd.DataFrame, shots: pd.DataFrame, season: str, per_kind: int = 6) -> pd.DataFrame:
     t, o = ev.t, ev.o
@@ -454,9 +433,7 @@ def build_refs(ev: pd.DataFrame, shots: pd.DataFrame, season: str, per_kind: int
     return refs.reset_index(drop=True)
 
 
-# ---------------------------------------------------------------------------
 # Driver
-# ---------------------------------------------------------------------------
 
 def build_all(data_dir: str = "data", verbose: bool = True) -> dict:
     t0 = time.time()

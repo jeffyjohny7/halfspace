@@ -36,6 +36,10 @@ export function ratingAt(pid, clock = S.clock) {
   return { value, reasons, stats };
 }
 
-export const ratingBand = (v) => (v >= 8 ? "great" : v >= 7 ? "good" : v >= 6 ? "ok" : "poor");
+// Colour band of a rating as shown (a 5.98 shown as 6.0 is "ok", not "poor").
+export const ratingBand = (v, digits = 1) => {
+  const r = Math.round(v * 10 ** digits) / 10 ** digits;
+  return r >= 8 ? "great" : r >= 7 ? "good" : r >= 6 ? "ok" : "poor";
+};
 export const fmtRating = (v) => (v == null ? "–" : v.toFixed(1));
 export const fmtChange = (x) => `${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(2)}`;

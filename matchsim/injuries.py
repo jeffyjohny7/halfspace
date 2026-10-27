@@ -1,17 +1,4 @@
-"""Injuries, suspensions and team news.
-
-In-match injuries come from the match engine (contact after fouls, and muscle
-injuries that rise with tiredness); training injuries happen between matches.
-Every player has a hidden injury proneness (older players and those with low
-stamina break down more often).
-
-Suspensions follow familiar rules: a straight red is a 3-match ban, a second
-yellow 1 match; 5 league yellows before the halfway point cost 1 match, 10 before
-the last six rounds 2 matches, and 15 at any time 3 matches.
-
-The tracker is run in date order, so each match is picked from the players
-actually available on that day, and it publishes the team news before every match.
-"""
+"""Injuries, suspensions and team news."""
 
 from __future__ import annotations
 
@@ -109,7 +96,7 @@ class Tracker:
     last_training_day: dict[str, dt.date] = field(default_factory=dict)
     season: str = ""
 
-    # ------------------------------------------------------------------ queries
+    # Queries
     def _active(self, pid: str, date: dt.date) -> list[Absence]:
         out = []
         for a in self.absences.get(pid, []):
@@ -150,7 +137,7 @@ class Tracker:
                     "injury_id": a.injury_id})
         return rows
 
-    # ------------------------------------------------------------------ updates
+    # Updates
     def new_season(self, season: str) -> None:
         self.season = season
         self.yellows = {}

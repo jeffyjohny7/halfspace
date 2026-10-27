@@ -87,7 +87,7 @@ class Team:
         self._failures = 0
         self._breaker_until = 0.0
 
-    # ------------------------------------------------------------------ viewers
+    # Viewers
     def viewers_for(self, audience: str) -> list[Viewer]:
         return [v for v in self.state.viewers if v.audience == audience]
 
@@ -102,7 +102,7 @@ class Team:
     def language_name(self, code: str) -> str:
         return LANGUAGES.get(code, code)
 
-    # ------------------------------------------------------------------ LLM calls
+    # LLM calls
     async def llm(self, agent_name: str, agent: Any, prompt: str, schema, session: Any = None) -> CallResult:
         # Circuit breaker: after several failures in a row, stop calling the model for a minute
         # (the broadcast carries on with safe templates) and then try again.

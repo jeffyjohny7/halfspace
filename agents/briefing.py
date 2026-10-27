@@ -1,10 +1,4 @@
-"""Code-side support for the Scout and Recap agents.
-
-* checking a pre-match brief against the evidence (and a safe brief built from the
-  matchup report when the model is unavailable);
-* the full-time fact sheet the Recap agent writes from, checking its recap, and a
-  safe recap.
-"""
+"""Code-side support for the Scout and Recap agents."""
 
 from __future__ import annotations
 
@@ -63,7 +57,7 @@ def names_in(texts: list[str], roster: dict[str, str]) -> list[str]:
     return [n for n in roster if n in blob]
 
 
-# ---------------------------------------------------------------------------- pre-match
+# Pre-match
 
 def offline_brief(report: dict) -> PreMatchBrief:
     fx = report["fixture"]
@@ -139,7 +133,7 @@ def merge_with_safe(brief: PreMatchBrief, safe: PreMatchBrief, header_ok: bool) 
                          tactical_preview=brief.tactical_preview if header_ok else safe.tactical_preview)
 
 
-# ---------------------------------------------------------------------------- full-time
+# Full-time
 
 def recap_facts(analyst: Analyst, state: BroadcastState) -> tuple[list[str], list[dict]]:
     live = analyst.live

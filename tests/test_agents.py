@@ -1,13 +1,4 @@
-"""Tests for the broadcast agent team.
-
-The policy pieces (Verifier, Director) are tested directly. The full team is tested
-end to end on a small generated league, twice:
-* offline: no model, safe templates;
-* dry run: a scripted model that makes deliberate mistakes (a made-up number, a missing
-  translation, an invented storyline) and calls the real MCP tools over stdio. The test
-  proves none of the mistakes reaches the screen.
-Neither needs Azure. The workflow tests need Microsoft Agent Framework installed.
-"""
+"""Tests for the broadcast agent team."""
 
 from __future__ import annotations
 
@@ -36,7 +27,7 @@ def _check(head, body, lang="en", profile="casual", **kw):
     return Verifier(ROSTER, CLUBS).check(profile, lang, head, body, FACTS, "", NAMES, [], **kw)
 
 
-# ---------------------------------------------------------------------------- verifier
+# Verifier
 
 def test_numbers_are_parsed_with_native_digits():
     assert numbers("xG 0.25 and 27%") == [(0.25, 2, False), (27.0, 0, True)]
@@ -79,7 +70,7 @@ def test_verifier_checks_the_language():
     assert any("Malayalam" in p for p in english)
 
 
-# ---------------------------------------------------------------------------- director
+# Director
 
 def _cand(cid, kind, prio, subject, must=False, clock=600.0):
     return Candidate(cid, kind, clock, int(clock // 60), prio, ["fact 1"], [], [], {}, subject, must_show=must)
@@ -113,7 +104,7 @@ def test_analyst_influence_is_bounded():
     assert c[0].importance == pytest.approx(0.6)
 
 
-# ---------------------------------------------------------------------------- whole team
+# Whole team
 
 @pytest.fixture(scope="module")
 def league(tmp_path_factory) -> Path:
@@ -183,11 +174,10 @@ def test_dry_run_team_never_publishes_a_mistake(league, tmp_path):
                 assert any(0x0D00 <= ord(ch) <= 0x0D7F for ch in v["headline"] + v["body"])
 
 
-# ---------------------------------------------------------------------------- fan desk (Ask)
+# Fan desk (Ask)
 
 def test_fan_desk_only_shows_checked_answers(league):
-    """The Ask endpoint end to end: real MCP tools over stdio, a scripted model, the web server.
-    A faithful answer is shown with its sources; an answer with a made-up number never is."""
+    """The Ask endpoint end to end: real MCP tools over stdio, a scripted model, the web server."""
     pytest.importorskip("agent_framework")
     pytest.importorskip("httpx")
     import re
@@ -223,11 +213,11 @@ def test_fan_desk_only_shows_checked_answers(league):
         assert bad["error"] and "987" not in bad["answer"]
 
 
-# ---------------------------------------------------------------------------- evaluation
+# Evaluation
 
 def test_eval_code_checks_flag_untraced_numbers_and_wrong_language(tmp_path):
-    """scripts/eval_agents.py --offline: templates are skipped, a number that is not in the
-    facts and a 'Malayalam' graphic written in English are both caught; Ask answers count too."""
+    """scripts/eval_agents.py --offline: templates are skipped, a number that is not in the facts and a
+    'Malayalam' graphic written in English are both caught; Ask answers count too."""
     from scripts.eval_agents import ask_rows, broadcast_rows, broadcast_stats, run_offline, write_report
 
     run = tmp_path / "run"
@@ -328,9 +318,9 @@ def test_guardrail_blocks_are_recognised_and_not_retried(league):
 
 
 def test_attack_set_reports_which_layer_stopped_each_attack(league, tmp_path):
-    """scripts/eval_attacks.py with a scripted model that is blocked by Prompt Shields on two attacks,
-    'falls for' the bookmaker role-play (the Verifier holds it back) and the encoded instruction (reported as
-    a leak, so the report can't hide a failure), and declines the rest."""
+    """scripts/eval_attacks.py with a scripted model that is blocked by Prompt Shields on two attacks, 'falls
+    for' the bookmaker role-play (the Verifier holds it back) and the encoded instruction (reported as a
+    leak, so the report can't hide a failure), and declines the rest."""
     pytest.importorskip("agent_framework_openai")
     from agents.desk import FanDesk
     from agents.llm import scripted_client
@@ -363,8 +353,8 @@ def test_attack_set_reports_which_layer_stopped_each_attack(league, tmp_path):
 
 
 def test_a_retry_starts_a_fresh_session():
-    """A failed run can leave a conversation with a tool call that never got its result; the service then refuses
-    every later turn in it. ask() retries in a new session and hands that session back."""
+    """A failed run can leave a conversation with a tool call that never got its result; the service then
+    refuses every later turn in it. ask() retries in a new session and hands that session back."""
     from pydantic import BaseModel
 
     from agents.llm import ask
@@ -400,7 +390,7 @@ def test_a_retry_starts_a_fresh_session():
 
 def test_ask_knows_todays_match_only_up_to_the_fans_moment(league):
     """Ask follows the replay clock: at 30' it can name the goals so far and nothing later; before kick-off it
-    gets nothing about the match at all. The clamp is in the tool, so no prompt can get past it."""
+    gets nothing about the match at all."""
     pytest.importorskip("agent_framework")
     from agent_framework import Content
 
@@ -436,7 +426,7 @@ def test_ask_knows_todays_match_only_up_to_the_fans_moment(league):
     assert '"watched": false' in seen[-1] and not before.get("answered")
 
 
-# ---------------------------------------------------------------------------- fan memory and alerts
+# Fan memory and alerts
 
 def test_memory_keeps_only_checked_football_preferences(league, tmp_path):
     """The Memory Keeper only proposes; the store keeps a real club, real players, a style and listed topics,

@@ -1,19 +1,4 @@
-"""Event-level football match engine.
-
-The engine plays a match possession by possession. Every on-ball action
-(pass, carry, take-on, cross, shot) and every defensive action (pressure,
-tackle, interception, block, clearance, aerial duel) is emitted as an event,
-in the same spirit as professional event data.
-
-Coordinates: every event is stored in the *acting team's* attacking frame.
-x runs 0 -> 105 (own goal line -> opponent goal line), y runs 0 -> 68 (the
-team's right touchline -> its left touchline). `schema.to_absolute` converts to
-a fixed broadcast frame.
-
-Outcomes come from hidden player attributes and team style, so patterns such as
-"this left-back loses the ball under pressure" emerge statistically rather than
-being scripted.
-"""
+"""Event-level football match engine."""
 
 from __future__ import annotations
 
@@ -45,9 +30,8 @@ def _logit(p: float) -> float:
     return math.log(p / (1.0 - p))
 
 
-# Role in possession: (how far the player follows the ball forward, furthest x he goes,
-# how often he offers himself for a pass). Calibrated so passes per 90 by position match
-# real top-flight football: centre-backs and midfielders on the ball most, strikers least.
+# Role in possession: (how far the player follows the ball forward, furthest x he goes, how often he offers
+# himself for a pass).
 REF_BALL_X = 40.0
 ROLES = {
     "GK": (0.18, 22.0, 1.1),
@@ -157,8 +141,8 @@ class MatchEngine:
                  home_rotation: int = 0, away_rotation: int = 0,
                  neutral: bool = False, home_out: set | None = None, away_out: set | None = None,
                  home_doubtful: set | None = None, away_doubtful: set | None = None):
-        """home_out / away_out: injured or suspended players; *_doubtful: late fitness tests
-        (each one passes with probability 0.5)."""
+        """home_out / away_out: injured or suspended players; *_doubtful: late fitness tests (each one passes
+        with probability 0.5)."""
         self.rng = random.Random(seed)
         self.match_id = match_id
         self.neutral = neutral
@@ -175,7 +159,7 @@ class MatchEngine:
         self._added_decided = False
         self.stoppages = 0
 
-    # ------------------------------------------------------------------ setup
+    # Setup
     def _make_side(self, club: Club, is_home: bool, rotation: int, fatigue: float,
                    out: set, doubtful: set) -> Side:
         rng = self.rng
@@ -217,7 +201,7 @@ class MatchEngine:
     def other(self, side: Side) -> Side:
         return self.away if side is self.home else self.home
 
-    # ------------------------------------------------------------------ clock
+    # Clock
     def match_seconds(self) -> float:
         return (0.0 if self.period == 1 else HALF) + self.t
 
@@ -228,11 +212,10 @@ class MatchEngine:
     def _tick(self, secs: float) -> None:
         self.t += secs
 
-    # ------------------------------------------------------------------ events
+    # Events
     def _emit(self, side: Side, etype: str, player: Player | None, x: float, y: float,
               frame: Side, **kw) -> dict:
-        """Record an event. x, y are given in `frame`'s attacking frame and
-        stored in the acting side's frame."""
+        """Record an event. x, y are given in `frame`'s attacking frame and stored in the acting side's frame."""
         if frame is not side:
             x, y = L - x, W - y
         total = self.match_seconds()
@@ -288,7 +271,7 @@ class MatchEngine:
         self.events.append(ev)
         return ev
 
-    # ------------------------------------------------------------------ helpers
+    # Helpers
     def _fatigue(self, side: Side, slot: Slot) -> float:
         played = (self.match_seconds() - slot.on_at) / 60.0
         stamina = slot.player.attrs["stamina"]
@@ -335,11 +318,7 @@ class MatchEngine:
         return bonus
 
     def _pos_att(self, side: Side, s: Slot, bx_ball: float, by_ball: float) -> tuple[float, float]:
-        """Where a player stands when his team has the ball.
-
-        Each role follows the ball by a different amount: full-backs push on, centre-backs
-        hold the halfway line, strikers stay on the last line, so the team keeps a
-        realistic 35-45 m block instead of everyone sliding together."""
+        """Where a player stands when his team has the ball."""
         pos = s.player.position
         follow, cap, _avail = ROLES.get(pos, ROLES["CM"])
         lh = (side.style.get("line_height", 0.5) - 0.5) * 10
@@ -352,10 +331,7 @@ class MatchEngine:
         return _clamp(x, 2, cap), _clamp(by + (by_ball - 34) * 0.25, 1, 67)
 
     def _pos_def(self, dfn: Side, s: Slot, x: float, y: float) -> tuple[float, float]:
-        """Defender position, returned in the attacking frame.
-
-        The back line sits 12-20 m behind the ball (higher for high-line teams),
-        and the team stays compact (about 35 m from back line to forwards)."""
+        """Defender position, returned in the attacking frame."""
         bxd = L - x                      # ball position in the defending team's own frame
         lh = dfn.style.get("line_height", 0.5)
         line = _clamp(bxd - 14 + (lh - 0.5) * 14, 6, 48 + 10 * (lh - 0.5))
@@ -414,7 +390,7 @@ class MatchEngine:
             return _clamp(rng.gauss(10, 6), 2, 66)
         return _clamp(y + rng.gauss(0, spread), 2, 66)
 
-    # ------------------------------------------------------------------ main loop
+    # Main loop
     def simulate(self) -> MatchResult:
         self._pattern = "regular"
         self._poss_start = 0.0
@@ -476,7 +452,7 @@ class MatchEngine:
     def _time_up(self) -> bool:
         return self._added_decided and self.t >= HALF + self.added[self.period - 1] * 60
 
-    # ------------------------------------------------------------------ substitutions
+    # Substitutions
     def _maybe_subs(self) -> None:
         mins = self.match_seconds() / 60.0
         for side in (self.home, self.away):
@@ -485,7 +461,7 @@ class MatchEngine:
                 self._substitute(side)
         self._maybe_injury()
 
-    # ------------------------------------------------------------------ injuries
+    # Injuries
     def _maybe_injury(self) -> None:
         """Muscle injuries: a small hazard per player, higher when tired or injury-prone."""
         now = self._elapsed()
@@ -567,7 +543,7 @@ class MatchEngine:
         self._tick(rng.uniform(20, 35))
         self.stoppages += 1
 
-    # ------------------------------------------------------------------ possession
+    # Possession
     PATTERNS = {"kick_off": "from_kick_off", "throw_in": "from_throw_in",
                 "goal_kick": "from_goal_kick", "corner": "from_corner",
                 "free_kick": "from_free_kick", "penalty": "penalty",
@@ -662,7 +638,7 @@ class MatchEngine:
                 best, bd = s, d
         return best.player if best else side.slots[0].player
 
-    # ------------------------------------------------------------------ one action
+    # One action
     def _action(self, att: Side, dfn: Side, carrier: Player, x: float, y: float):
         rng = self.rng
         st = att.style
@@ -797,7 +773,7 @@ class MatchEngine:
             return self._carry(att, dfn, carrier, cslot, x, y, up, take_on=(choice == "take_on"))
         return self._pass(att, dfn, carrier, cslot, x, y, up, choice)
 
-    # ------------------------------------------------------------------ passing
+    # Passing
     def _pass(self, att: Side, dfn: Side, carrier: Player, cslot: Slot, x: float, y: float,
               up: bool, kind: str):
         rng = self.rng
@@ -984,7 +960,7 @@ class MatchEngine:
     def _ball_speed(self, length: float) -> float:
         return round(_clamp(22 + 1.35 * length + self.rng.gauss(0, 6), 15, 110), 1)
 
-    # ------------------------------------------------------------------ carrying / dribbling
+    # Carrying / dribbling
     def _carry(self, att: Side, dfn: Side, carrier: Player, cslot: Slot, x: float, y: float,
                up: bool, take_on: bool):
         rng = self.rng
@@ -1046,7 +1022,7 @@ class MatchEngine:
         self._emit(att, "ball_recovery", rec, tx, ty, att)
         return ("continue", rec, tx, ty, False)
 
-    # ------------------------------------------------------------------ aerial duels
+    # Aerial duels
     def _aerial(self, att: Side, dfn: Side, attacker: Player, defender: Player,
                 x: float, y: float, set_piece_edge: float = 0.0) -> bool:
         rng = self.rng
@@ -1059,7 +1035,7 @@ class MatchEngine:
                    related=attacker)
         return won
 
-    # ------------------------------------------------------------------ crosses
+    # Crosses
     def _cross(self, att: Side, dfn: Side, carrier: Player, x: float, y: float, up: bool,
                set_piece: str | None = None, sp_edge: float = 0.0):
         rng = self.rng
@@ -1067,9 +1043,8 @@ class MatchEngine:
         tx = _clamp(rng.gauss(95.5, 3.2), 88, 103)
         ty = _clamp(rng.gauss(GOAL_Y, 6.5), 22, 46)
         length = math.hypot(tx - x, ty - y)
-        # Who attacks the ball: at set pieces the five best in the air (centre-backs come up);
-        # in open play the forwards and midfielders who arrive in the box. Spread over several
-        # players, so no one heads in a season's worth of goals.
+        # Who attacks the ball: at set pieces the five best in the air (centre-backs come up); in open play
+        # the forwards and midfielders who arrive in the box.
         targets = [s for s in att.slots if s.player is not carrier and s.player.position != "GK"]
         if not set_piece:
             targets = [s for s in targets if s.player.position in ("ST", "RW", "LW", "AM", "CM")] or targets
@@ -1145,7 +1120,7 @@ class MatchEngine:
         self.stoppages += 2
         return ("kick_off", dfn, 52.5, 34.0, None)
 
-    # ------------------------------------------------------------------ shooting
+    # Shooting
     def _shot(self, att: Side, dfn: Side, shooter: Player, x: float, y: float, up: bool,
               header: bool, set_piece: str | None = None, xg_override: float | None = None):
         rng = self.rng
@@ -1154,9 +1129,8 @@ class MatchEngine:
         gk = gk_slot.player
         xg = xg_override if xg_override is not None else xg_model(x, y, header)
         sslot = self._slot_of(att, shooter)
-        # Finishing skill moves conversion a little around the xG model, as in real data: an
-        # ordinary shooter converts at about xG, an elite finisher at roughly 1.2-1.3x, a centre-back
-        # at about 0.8x. Above 88 the effect steepens, so genuinely clinical finishers stand out.
+        # Finishing skill moves conversion a little around the xG model, as in real data: an ordinary shooter
+        # converts at about xG, an elite finisher at roughly 1.2-1.3x, a centre-back at about 0.8x.
         fin = a["finishing"]
         v = (_logit(xg) + FIN_SLOPE * (fin - 72) + FIN_ELITE * max(0.0, fin - 88)
              + 0.002 * (a["composure"] - 75)
@@ -1230,7 +1204,7 @@ class MatchEngine:
         self._tick(rng.uniform(18, 32))
         return ("goal_kick", dfn, 5.5, 34.0, None)
 
-    # ------------------------------------------------------------------ fouls and cards
+    # Fouls and cards
     def _foul(self, offenders: Side, victims: Side, offender: Player, victim: Player,
               x: float, y: float, up: bool):
         """x, y in the victims' attacking frame. Returns the restart."""
@@ -1278,7 +1252,7 @@ class MatchEngine:
         side.slots = [s for s in side.slots if s.player is not player]
         self._tick(self.rng.uniform(40, 70))
 
-    # ------------------------------------------------------------------ set pieces
+    # Set pieces
     def _taker(self, side: Side, positions: tuple[str, ...] = ()) -> Player:
         """The main set-piece taker most of the time, his deputy otherwise (other foot, other side)."""
         pool = [s.player for s in side.slots if s.player.position != "GK"

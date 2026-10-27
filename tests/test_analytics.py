@@ -1,7 +1,4 @@
-"""Tests for the stats engine, live layer and MCP server on a small generated league.
-
-Run with:  uv run pytest -q
-"""
+"""Tests for the stats engine, live layer and MCP server on a small generated league."""
 
 from __future__ import annotations
 
@@ -172,11 +169,11 @@ def test_public_injuries_do_not_leak_future_returns(analyst):
     assert (inj.date <= cutoff).all()
 
 
-# ---------------------------------------------------------------------------- match ratings
+# Match ratings
 
 def test_ratings_are_explained_and_realistic(analyst):
-    """Every rating is 6.0 plus the listed actions; a goal is worth +1.0 at that moment; future
-    substitutes are not rated; season ratings sit where fans expect them."""
+    """Every rating is 6.0 plus the listed actions; a goal is worth +1.0 at that moment; future substitutes
+    are not rated; season ratings sit where fans expect them."""
     from analytics import rating
     live = analyst.live
     end = live.end_clock

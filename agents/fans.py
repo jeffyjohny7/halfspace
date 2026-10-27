@@ -1,22 +1,4 @@
-"""Fan memory and personal alerts.
-
-What Halfspace remembers about a fan is only what the fan chose to share, and the fan can see and delete
-every line of it (the My Halfspace page).
-
-- FanStore: one JSON profile per fan under data/runtime/fans/. A first name the fan typed, the club and
-  players they follow, a style and a language, a few interests, and where each line came from. Nothing is
-  learned from Ask unless the fan switched memory on.
-- Memory Keeper (LLM agent): reads the fan's own words in Ask and proposes football preferences. Code keeps
-  only a real club, real players, a style or an interest from a fixed list, each with the fan's words as its
-  source. Anything else in the message (health, family, work, ...) never reaches the store.
-- FanContext (an Agent Framework ContextProvider): before every Fan Desk run it adds who the fan is and how
-  their club is doing at the minute they have reached, so the answer is theirs: kind after a goal against,
-  glad after a win, never pushy.
-- Alerts: code finds the moments in today's match that involve the fan's club or players, the Notifier
-  agent writes each one for the fan by name, and the Verifier checks it (a plain template if anything
-  fails). Alerts are written ahead of time and released only when the fan's replay reaches them, so they
-  arrive on time and never spoil what is coming.
-"""
+"""Fan memory and personal alerts."""
 
 from __future__ import annotations
 
@@ -58,7 +40,7 @@ def clean_name(name: Any) -> str:
     return first[:1].upper() + first[1:] if first else ""
 
 
-# ---------------------------------------------------------------------------- the store
+# The store
 
 class FanStore:
     def __init__(self, folder: str | Path, analyst=None):
@@ -255,7 +237,7 @@ def public_profile(prof: dict | None, analyst) -> dict | None:
             "facts": prof.get("facts", [])}
 
 
-# ---------------------------------------------------------------------------- the fan, in the Fan Desk's context
+# The fan, in the Fan Desk's context
 
 def _club_now(analyst, cid: str, clock_s: float | None) -> str | None:
     """How the fan's club stands right now: today's match at the fan's minute, else their last result."""
@@ -286,8 +268,7 @@ def _club_now(analyst, cid: str, clock_s: float | None) -> str | None:
 
 
 def fan_brief(prof: dict | None, analyst, clock_s: float | None) -> list[str]:
-    """What the Fan Desk is told about this fan. Every number in it is computed here, so the Verifier
-    accepts it as a fact."""
+    """What the Fan Desk is told about this fan."""
     if not prof:
         return []
     store = analyst.store
@@ -349,7 +330,7 @@ class MemoryKeeper:
         return res.value
 
 
-# ---------------------------------------------------------------------------- alerts
+# Alerts
 
 def _side(analyst, cid: str | None) -> str | None:
     meta = analyst.store.showcase_meta
@@ -521,7 +502,8 @@ class Notifier:
 
 
 class AlertService:
-    """Writes a fan's alerts ahead of time (in the background) and releases them as the fan's replay reaches them."""
+    """Writes a fan's alerts ahead of time (in the background) and releases them as the fan's replay reaches
+    them."""
 
     def __init__(self, store: FanStore, analyst, notifier: Notifier, concurrency: int = 3):
         self.store, self.analyst, self.notifier = store, analyst, notifier
@@ -575,7 +557,8 @@ class AlertService:
         return alerts
 
     def due(self, fan_id: str, clock_s: float) -> dict:
-        """Alerts whose moment the fan has reached. Never anything later than their replay (not even how many)."""
+        """Alerts whose moment the fan has reached. Never anything later than their replay (not even how
+        many)."""
         prof = self.store.load(fan_id)
         if prof is None or not prof.get("alerts"):
             return {"alerts": []}

@@ -1,10 +1,4 @@
-"""Season aggregates, metric definitions, shrinkage and peer comparisons.
-
-Small samples lie. Every rate here is shrunk toward the peer median before it
-is compared ("empirical Bayes"): a player who lost the ball 3 times in 4
-presses is not yet a liability. Comparisons use robust z-scores
-(median and MAD), so one extreme player does not hide another.
-"""
+"""Season aggregates, metric definitions, shrinkage and peer comparisons."""
 
 from __future__ import annotations
 
@@ -115,9 +109,7 @@ def sample(df: pd.DataFrame, metric: Metric) -> pd.Series:
     return df["minutes"] if metric.den == "minutes" else df[metric.den]
 
 
-# ---------------------------------------------------------------------------
 # Player seasons
-# ---------------------------------------------------------------------------
 
 def player_seasons(store: Store, league_only: bool = True) -> pd.DataFrame:
     """One row per (season, player): summed counts plus context."""
@@ -153,8 +145,8 @@ def _robust_scale(values: pd.Series) -> tuple[float, float]:
 
 
 def compare_players(ps: pd.DataFrame, metric: Metric) -> pd.DataFrame:
-    """Add shrunk value, robust z and percentile for one metric, within
-    (season, division, position) peer groups."""
+    """Add shrunk value, robust z and percentile for one metric, within (season, division, position) peer
+    groups."""
     df = ps.copy()
     if metric.positions:
         df = df[df.position.isin(metric.positions)]
@@ -198,9 +190,7 @@ def compare_players(ps: pd.DataFrame, metric: Metric) -> pd.DataFrame:
     return pd.concat(out) if out else df.assign(shrunk=np.nan, z=np.nan, percentile=np.nan)
 
 
-# ---------------------------------------------------------------------------
 # Team seasons
-# ---------------------------------------------------------------------------
 
 TEAM_METRICS: dict[str, tuple[str, str | None, str]] = {
     # name: (label, better, kind)

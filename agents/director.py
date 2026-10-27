@@ -1,12 +1,4 @@
-"""The Director: decides what goes on screen, when, and for whom.
-
-Pure policy code, so its decisions are predictable and explainable:
-* goals, red cards, half-time and full-time always go out (must-show);
-* everything else needs enough importance, a free slot (minimum gap between cues
-  per audience) and novelty (the same subject is not repeated within 10 minutes);
-* at most one regular cue per audience per tick, two when something is very important.
-Every decision, including what was skipped and why, is written to the run log.
-"""
+"""The Director: decides what goes on screen, when, and for whom."""
 
 from __future__ import annotations
 
@@ -25,11 +17,7 @@ def _priority(c: Candidate) -> str:
 
 
 def apply_reading(candidates: list[Candidate], picks: dict[str, tuple[float, str]]) -> None:
-    """Blend the analyst's importance with the engine's base priority.
-
-    The analyst can raise or lower an item by at most 0.3, so one odd model judgement
-    can neither bury a goal nor push a routine stat to the top.
-    """
+    """Blend the analyst's importance with the engine's base priority."""
     for c in candidates:
         imp, angle = picks.get(c.cand_id, (None, ""))
         if imp is None:

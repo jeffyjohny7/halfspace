@@ -1,10 +1,4 @@
-"""Safe fallback text, built from the facts alone.
-
-Used when the Fan Lens cannot produce text that passes the Verifier (or the model is
-unreachable). It is plain but always correct, so the broadcast never shows a wrong
-number. Other languages get a translated label with the English fact line, and the
-cue is marked as degraded.
-"""
+"""Safe fallback text, built from the facts alone."""
 
 from __future__ import annotations
 

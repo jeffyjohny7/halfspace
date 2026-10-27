@@ -1,12 +1,4 @@
-"""The three Agent Framework workflows of a broadcast.
-
-Pre-match:   Scout <-> BriefCheck -> BriefCues -> FanLens <-> Verifier -> Publisher
-Live tick:   Gather -> TacticalAnalyst -> Director -> FanLens <-> Verifier -> Publisher
-Post-match:  Recap <-> RecapCheck -> RecapCues -> FanLens <-> Verifier -> Publisher
-
-The <-> loops are conditional edges: the checker sends work back to the writer with
-specific feedback until it passes, or the attempt limit hands over to a safe template.
-"""
+"""The three Agent Framework workflows of a broadcast."""
 
 from __future__ import annotations
 

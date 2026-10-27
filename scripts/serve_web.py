@@ -106,7 +106,7 @@ def create_app(data_dir: str = "data", mode: str = "foundry", client=None, reaso
                                    ensure_ascii=False) + "\n")
         return JSONResponse(reply)
 
-    # ---------------------------------------------------------------- My Halfspace: the fan's profile
+    # My Halfspace: the fan's profile
     async def _body(request: Request) -> dict:
         try:
             body = await request.json()

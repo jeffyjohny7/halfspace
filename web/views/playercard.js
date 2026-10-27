@@ -1,7 +1,5 @@
-// The player card: a chalk-paper sheet that opens over any screen (squads, line-ups) and closes
-// with the cross, Escape or a click outside. Top: name, rating, portrait, the numbers fans
-// look for, and where he played. Below, scrolling: this match, the comparison wheel, the
-// scout's notes and fitness.
+// The player card: a chalk-paper sheet that opens over any screen (squads, line-ups) and closes with the
+// cross, Escape or a click outside.
 import { S } from "../app.js";
 import { esc, crestImg, shirtSVG } from "../lib/util.js";
 import { ratingAt, ratingBand, fmtRating, fmtChange } from "../lib/rating.js";
@@ -50,7 +48,7 @@ export function tickPlayerCard() {
   dlg.querySelector(".pc-scroll").scrollTop = keep;
 }
 
-// ------------------------------------------------------------------ pieces
+// Pieces
 
 function seasonOf(p) {
   const all = Object.keys(p.season_stats || {}).sort();

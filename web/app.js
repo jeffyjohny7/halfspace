@@ -97,7 +97,7 @@ export function render() {
   v.render(main, S, S.arg);
 }
 
-// ------------------------------------------------------------------ the match bar (match pages)
+// The match bar (match pages)
 
 function drawMatchBar() {
   const on = S.view.startsWith("match/") && S.data;
@@ -145,7 +145,7 @@ function tickHome() {
   if (key !== tickHome.k) { tickHome.k = key; renderHome(main, S); }
 }
 
-// ------------------------------------------------------------------ clock
+// Clock
 
 export function setClock(c) {
   S.clock = Math.max(0, Math.min(S.data.match.end, c));
@@ -165,7 +165,7 @@ function loop(t) {
   requestAnimationFrame(loop);
 }
 
-// ------------------------------------------------------------------ the fan: name, bell and alert tray
+// The fan: name, bell and alert tray
 
 function drawFan() {
   const p = F.profile;
@@ -203,7 +203,7 @@ function initFan() {
   loadFan().then(() => { if (S.view === "home" || S.view === "ask") render(); });
 }
 
-// ------------------------------------------------------------------ style and season
+// Style and season
 
 export function saveLens(lens) {
   S.lens = lens;
@@ -238,7 +238,7 @@ function initControls() {
   document.querySelectorAll("[data-hstyle]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.hstyle === S.style));
 }
 
-// ------------------------------------------------------------------ boot
+// Boot
 
 async function boot() {
   const [league, match] = await Promise.allSettled([

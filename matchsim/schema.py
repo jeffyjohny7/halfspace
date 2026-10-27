@@ -1,5 +1,5 @@
-"""Event schema and helpers shared by the generator and future consumers
-(stats engine, MCP server, agents, broadcast renderer)."""
+"""Event schema and helpers shared by the generator and future consumers (stats engine, MCP server, agents,
+broadcast renderer)."""
 
 from __future__ import annotations
 
@@ -75,11 +75,7 @@ EVENT_TYPES = {
 
 
 def to_absolute(x: float, y: float, team_is_home: bool, period: int) -> tuple[float, float]:
-    """Convert an event's team-relative coordinates to a fixed broadcast frame.
-
-    Broadcast frame: the home team attacks toward x = 105 in the first half and
-    toward x = 0 in the second half; y = 0 is the touchline nearest the camera.
-    """
+    """Convert an event's team-relative coordinates to a fixed broadcast frame."""
     home_attacks_right = period == 1
     attacks_right = home_attacks_right if team_is_home else not home_attacks_right
     if attacks_right:

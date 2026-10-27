@@ -1,11 +1,5 @@
-"""Realism report: are the synthetic matches football-realistic, and are the
-planted truths actually visible in the data?
-
-Reference ranges are approximate figures for a modern top-flight league
-(e.g. the 2024-25 Premier League averaged 2.93 goals per match; its champion
-finished on 84 points and its bottom club on 12). They are deliberately wide:
-the point is to catch unrealistic behaviour, not to clone one season.
-"""
+"""Realism report: are the synthetic matches football-realistic, and are the planted truths actually visible
+in the data?"""
 
 from __future__ import annotations
 
@@ -159,8 +153,7 @@ def squad_metrics(ev: pd.DataFrame, lineups: pd.DataFrame, positions: dict, pub:
 
 
 def leader_metrics(ev: pd.DataFrame, lu: pd.DataFrame) -> dict:
-    """Goals, assists and shot volume of the leading players (lu carries a 'group' column).
-    An assist is the last completed pass in the possession, received by the scorer."""
+    """Goals, assists and shot volume of the leading players (lu carries a 'group' column)."""
     ev = ev.sort_values(["match_id", "event_id"])
     sel = ev[((ev.type == "pass") & (ev.outcome == "complete")) | (ev.type == "shot")].copy()
     for c in ("player_id", "receiver_id", "team_id"):
@@ -194,14 +187,12 @@ def leader_metrics(ev: pd.DataFrame, lu: pd.DataFrame) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
 # Signal checks
-# ---------------------------------------------------------------------------
 
 
 def _z(value, peers):
-    """Robust z-score: (value - median) / (1.4826 * MAD), so planted outliers
-    in the peer group do not hide each other."""
+    """Robust z-score: (value - median) / (1.4826 * MAD), so planted outliers in the peer group do not hide
+    each other."""
     peers = pd.Series(peers).dropna()
     if len(peers) < 4 or value is None or (isinstance(value, float) and math.isnan(value)):
         return None
@@ -389,9 +380,7 @@ def signal_checks(truths, ev, matches, lineups, positions, prev_team: pd.DataFra
     return out
 
 
-# ---------------------------------------------------------------------------
 # Report
-# ---------------------------------------------------------------------------
 
 
 def _load(out_dir: str, season: str) -> pd.DataFrame:

@@ -31,9 +31,7 @@ def _ok(v) -> bool:
 
 
 def write_clock(path: Path, match_id: str, clock_s: float, retries: int = 6) -> bool:
-    """Atomically update the live clock. On Windows another program (VS Code, the search
-    indexer, antivirus, the MCP server) can hold the file for a moment, so retry briefly,
-    then skip this update rather than crash - the next update will catch up."""
+    """Atomically update the live clock."""
     data = json.dumps({"match_id": match_id, "clock_s": round(clock_s, 1)})
     tmp = path.with_suffix(".tmp")
     for attempt in range(retries):

@@ -1,14 +1,4 @@
-"""Run a whole broadcast: pre-match brief, the live match tick by tick, the recap.
-
-The runner plays the showcase feed forward. Before every tick it writes the live
-clock file, so the MCP server cannot show any agent an event that has not happened
-yet. Output goes to data/runtime/broadcast/:
-
-    brief.json     the verified pre-match brief
-    cues.jsonl     every on-screen cue, with its variants, facts and verification record
-    recap.json     the verified post-match recap
-    run_log.json   every decision by every agent, model-call timings, counters
-"""
+"""Run a whole broadcast: pre-match brief, the live match tick by tick, the recap."""
 
 from __future__ import annotations
 

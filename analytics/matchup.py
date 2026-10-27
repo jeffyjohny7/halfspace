@@ -1,10 +1,4 @@
-"""Pre-match matchup report: context, form, style clash, edges and live-checkable predictions.
-
-An *edge* pairs one side's weakness with the other side's matching strength,
-e.g. "Penmarrow press hard; Dunvarrow's midfielder loses the ball when pressed".
-Each edge produces *predictions* that the live layer can check minute by minute.
-That is the product's spine: predict before kick-off, verify live.
-"""
+"""Pre-match matchup report: context, form, style clash, edges and live-checkable predictions."""
 
 from __future__ import annotations
 
@@ -27,7 +21,6 @@ STYLE_METRICS = ["possession", "field_tilt", "ppda", "pressures_per_opp_pass", "
 # For a player of the opponent: which side of the beneficiary's attack does he face?
 # The opponent's left back defends against the beneficiary's right flank.
 FACES_FLANK = {"LB": "right", "LW": "right", "RB": "left", "RW": "left"}
-
 
 
 def ordinal(x: float) -> str:

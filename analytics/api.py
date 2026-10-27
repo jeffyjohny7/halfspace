@@ -1,8 +1,4 @@
-"""One facade over the analytics package. The MCP server and the agents call this.
-
-All methods return JSON-safe dicts/lists. Clubs and players can be passed by id
-("C02", "P00032") or by name ("Dunvarrow", "Emil Varailo").
-"""
+"""One facade over the analytics package. The MCP server and the agents call this."""
 
 from __future__ import annotations
 
@@ -31,7 +27,7 @@ class Analyst:
         self._showcase_report: dict | None = None
         self.lock = threading.RLock()
 
-    # ------------------------------------------------------------------ resolution
+    # Resolution
     def club_id(self, club: str) -> str:
         names = self.store.club_names
         if club in names:
@@ -76,7 +72,7 @@ class Analyst:
             raise NotFound(f"Unknown season {season}. Seasons: {', '.join(self.store.seasons)}")
         return season
 
-    # ------------------------------------------------------------------ league
+    # League
     def overview(self) -> dict:
         s = self.store
         cur = s.current_season
@@ -120,7 +116,7 @@ class Analyst:
                        "home_id": r.home_id, "away": self.store.club_name(r.away_id), "away_id": r.away_id,
                        "showcase": r.match_id == self.store.showcase_meta["match_id"]} for r in up.itertuples()])
 
-    # ------------------------------------------------------------------ clubs and players
+    # Clubs and players
     def club_profile(self, club: str, season: str | None = None, venue: str = "all", last_n: int | None = None) -> dict:
         return profiles.club_profile(self.store, self.club_id(club), self.season(season), venue, last_n)
 
@@ -158,7 +154,7 @@ class Analyst:
                            "last_5": rows[-5:]}
         return out
 
-    # ------------------------------------------------------------------ team news, injuries, line-ups
+    # Team news, injuries, line-ups
     def team_news(self, club: str, match_id: str | None = None) -> dict:
         return availability.team_news(self.store, self.club_id(club), match_id)
 
@@ -217,7 +213,7 @@ class Analyst:
         rep = matchup_report(self.store, self.scout, h, a, self.season(season), match_id)
         return compact_matchup(rep) if compact else rep
 
-    # ------------------------------------------------------------------ live (showcase match)
+    # Live (showcase match)
     @property
     def live(self) -> LiveMatch:
         if self._live is None:
@@ -245,7 +241,7 @@ class Analyst:
     def live_ratings(self, clock_s: float) -> dict:
         return self.live.ratings(clock_s)
 
-    # ------------------------------------------------------------------ evidence
+    # Evidence
     def get_events(self, match_id: str, event_ids: list[int], clock_s: float | None = None) -> list[dict]:
         if match_id == self.store.showcase_meta["match_id"]:
             if clock_s is None:

@@ -1,15 +1,4 @@
-"""The Verifier: checks every line of on-screen text before it is published.
-
-Checks (all deterministic):
-* numbers  - every number must match a number in the cue's facts or the tool results
-             the agents saw (allowing for rounding and 0.27 <-> 27% conversions);
-* names    - only players named in the facts may appear; no other squad player;
-* language - non-English text must be in the requested script, with only names,
-             metric names and digits left in Latin letters;
-* safety   - no betting language, emojis or hashtags;
-* length   - headline and body fit the graphic.
-Problems go back to the Fan Lens as feedback for a rewrite.
-"""
+"""The Verifier: checks every line of on-screen text before it is published."""
 
 from __future__ import annotations
 
@@ -67,8 +56,7 @@ def text_len(text: str, language: str) -> int:
 
 
 def trim_to_fit(text: str, limit: int, language: str) -> str | None:
-    """Drop trailing sentences until the text fits. None if even the first sentence is too long.
-    Dropping whole sentences can only remove information, never make a statement wrong."""
+    """Drop trailing sentences until the text fits."""
     if text_len(text, language) <= limit:
         return text
     parts = SENTENCE_END.split(text.strip())
@@ -118,8 +106,8 @@ def _matches(value: float, dec: int, pool: set[float]) -> bool:
 
 
 def _other_scripts(text: str, lang: str) -> set[str]:
-    """Letters that belong to neither Latin nor the language's own script (a model slipping into
-    Georgian, Hebrew or Korean mid-sentence, say)."""
+    """Letters that belong to neither Latin nor the language's own script (a model slipping into Georgian,
+    Hebrew or Korean mid-sentence, say)."""
     lo, hi = SCRIPTS.get(lang, (0, 0))
     bad = set()
     for ch in text:

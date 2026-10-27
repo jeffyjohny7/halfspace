@@ -1,6 +1,4 @@
 // Ratings (match centre): every player who has played so far, with his rating at the replay clock.
-// Pick a player for his card: the rating's reasons, his numbers in this match and his heat map.
-// Substitutes appear only once they have come on, so the list never gives away what happens later.
 import { S } from "../app.js";
 import { esc, crestImg, shirtSVG } from "../lib/util.js";
 import { ratingAt, ratingBand, fmtRating } from "../lib/rating.js";

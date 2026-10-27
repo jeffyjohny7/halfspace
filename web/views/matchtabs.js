@@ -91,7 +91,7 @@ function lineupsHTML() {
       <p class="mgr">Manager: ${esc(away.manager || "")}</p></div></div>`;
 }
 
-// ------------------------------------------------------------------ stats
+// Stats
 
 function stateAt(clock) {
   const tl = S.data.timeline, i = countUpTo(tl, clock, (e) => e.c);
@@ -151,7 +151,7 @@ function statsHTML() {
     <section class="sbox"><h3>Best rated so far</h3><div class="rated2"><div>${rated("home")}</div><div>${rated("away")}</div></div></section>`;
 }
 
-// ------------------------------------------------------------------ commentary
+// Commentary
 
 const SHOT = { saved: "Attempt saved", off_target: "Attempt missed", blocked: "Attempt blocked" };
 
@@ -217,7 +217,7 @@ function commentaryHTML(variantFor) {
   }).join("")}</ol>`;
 }
 
-// ------------------------------------------------------------------ entry points
+// Entry points
 
 let lastKey = "";
 

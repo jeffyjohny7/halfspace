@@ -16,9 +16,7 @@ from .engine import MatchEngine, MatchResult, penalty_shootout
 from .schema import EVENT_COLUMNS, EVENT_SCHEMA
 from .universe import Club
 
-# ---------------------------------------------------------------------------
 # Fixtures and calendar
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -46,18 +44,7 @@ class Fixture:
 
 def double_round_robin(club_ids: list[str], rng: random.Random,
                        feature: tuple[str, str, int] | None = None) -> list[list[tuple[str, str]]]:
-    """Circle-method schedule. Returns rounds of (home, away) pairs.
-
-    The first half is a single round robin; the second half replays it in the same order with
-    venues swapped, so every club has exactly as many home games as away games. Venues in the
-    first half are chosen round by round to alternate: a club that was away last time is at
-    home next, and when both clubs were last at the same venue, the one with fewer home games
-    (or the longer run away) gets the home game. A club rarely plays three in a row at home or
-    away, and every club has 4-6 home games in the first ten rounds.
-
-    feature = (home_id, away_id, round_no) puts that fixture in that round with that venue
-    (the broadcaster's pick); the round holding the pairing swaps places with round_no.
-    """
+    """Circle-method schedule. Returns rounds of (home, away) pairs."""
     ids = list(club_ids)
     rng.shuffle(ids)
     if len(ids) % 2:
@@ -113,8 +100,8 @@ def _next_weekday(d: dt.date, weekday: int) -> dt.date:
 
 
 def league_calendar(n_rounds: int, start_year: int, rng: random.Random) -> list[dt.date]:
-    """Saturdays from mid-August to late May, skipping international breaks,
-    plus Tuesday rounds when more rounds are needed."""
+    """Saturdays from mid-August to late May, skipping international breaks, plus Tuesday rounds when more
+    rounds are needed."""
     start = _next_weekday(dt.date(start_year, 8, 15), 5)
     end = dt.date(start_year + 1, 5, 23)
     breaks = []
@@ -155,8 +142,8 @@ _LEAGUE_PHASE = 8  # league-phase matchdays every qualified club plays
 
 def european_calendar(qualifiers: dict[str, str], quality: dict[str, float], start_year: int,
                       rng: random.Random) -> list[dict]:
-    """Midweek European fixtures for qualified clubs (results are not simulated;
-    they only matter for rest days and rotation)."""
+    """Midweek European fixtures for qualified clubs (results are not simulated; they only matter for rest
+    days and rotation)."""
     rows = []
     for club_id, comp in qualifiers.items():
         days = EURO_MATCHDAYS[comp]
@@ -177,10 +164,7 @@ def european_calendar(qualifiers: dict[str, str], quality: dict[str, float], sta
 
 
 def apply_rest_and_rotation(fixtures: list[Fixture], euro: list[dict]) -> None:
-    """Fill rest days, rotation and fatigue from each club's match calendar.
-
-    Clubs that played in Europe on Thursday play their league game on Sunday.
-    """
+    """Fill rest days, rotation and fatigue from each club's match calendar."""
     euro_by_club: dict[str, list[dt.date]] = {}
     for row in euro:
         euro_by_club.setdefault(row["club_id"], []).append(row["date"])
@@ -241,9 +225,7 @@ def league_fixtures(clubs: list[Club], season: str, competition: str, division: 
     return fixtures
 
 
-# ---------------------------------------------------------------------------
 # Running matches (in parallel) and writing events
-# ---------------------------------------------------------------------------
 
 
 def match_seed(base: int, match_id: str) -> int:
@@ -296,9 +278,7 @@ def simulate_fixtures(fixtures: list[Fixture], clubs: dict[str, Club], base_seed
                       writer: EventWriter | None, workers: int,
                       results: SeasonResults, progress: str = "", tracker=None,
                       europe: dict[str, list[dt.date]] | None = None) -> list[tuple[Fixture, MatchResult]]:
-    """Simulate fixtures day by day. Matches on the same day run in parallel; between days
-    the tracker updates injuries and suspensions, so each team is picked from the players
-    actually available."""
+    """Simulate fixtures day by day."""
     out: list[tuple[Fixture, MatchResult]] = []
     workers = workers or os.cpu_count() or 1
     by_day: dict[dt.date, list[Fixture]] = {}
@@ -363,9 +343,7 @@ def match_row(f: Fixture, r: MatchResult) -> dict:
     return row
 
 
-# ---------------------------------------------------------------------------
 # Standings
-# ---------------------------------------------------------------------------
 
 
 def standings(match_rows: list[dict], club_ids: list[str], names: dict[str, str],

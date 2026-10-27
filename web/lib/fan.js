@@ -1,6 +1,4 @@
 // The fan: a profile on the Halfspace server (My Halfspace) and personal alerts during the match.
-// The browser keeps only a random id; the server keeps what the fan chose to share, and the fan can
-// see and delete all of it. Alerts are released only when the fan's replay reaches their moment.
 import { esc } from "./util.js";
 
 const KEY = "halfspace.fan";
@@ -81,7 +79,7 @@ export async function refreshAfterAsk(remembered) {
   if (remembered?.length) await loadFan();
 }
 
-// ------------------------------------------------------------------ alerts
+// Alerts
 
 let polling = false;
 export async function pollAlerts(S) {

@@ -1,17 +1,4 @@
-"""The Scout's evidence engine: find a club's weaknesses, strengths and tendencies.
-
-For each candidate finding we
-  1. measure the matching statistic for the player or team,
-  2. shrink it toward the peer median (small samples are not trusted),
-  3. compare with peers (same position and division) using a robust z-score,
-  4. blend in last season when this season's sample is small - each season is
-     compared with its own league's peers, so a promoted club's second-tier
-     numbers are put in context instead of being taken at face value,
-  5. attach a confidence level and example event references.
-
-Category names form a public catalogue of football tendencies. The hidden
-answer key is never read here; evaluation/ does that afterwards.
-"""
+"""The Scout's evidence engine: find a club's weaknesses, strengths and tendencies."""
 
 from __future__ import annotations
 
@@ -127,8 +114,7 @@ _VERB_START = ("Create ", "Concede ", "Play ", "Commit ", "Press ", "Sit ", "Kee
 
 
 def _with_club(club: str, text: str) -> str:
-    """Team findings always name their club. A subject-less line ("Create 0.45 xG per match...") reached the
-    writers as a bare fact, and the model sometimes guessed the wrong club."""
+    """Team findings always name their club."""
     if text.startswith(_VERB_START):
         return f"{club} {text[0].lower()}{text[1:]}"
     return f"{club}: {text}"
@@ -149,8 +135,8 @@ def _fmt(metric: str, v: float | None) -> str:
 
 
 def confidence(z: float, eff: float, min_sample: float) -> str | None:
-    """high = headline claim (safe to show on screen); medium = watch list, to be
-    tested live; low = weak signal, only on request."""
+    """high = headline claim (safe to show on screen); medium = watch list, to be tested live; low = weak
+    signal, only on request."""
     if z is None or np.isnan(z):
         return None
     a = abs(z)

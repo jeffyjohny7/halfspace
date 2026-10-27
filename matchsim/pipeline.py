@@ -1,15 +1,4 @@
-"""End-to-end generation of the league universe.
-
-Steps
------
-1. Build clubs, squads and managers; plant hidden traits (the answer key).
-2. Simulate the previous season: top division + second tier, European
-   midweeks, second-tier playoffs.
-3. Offseason: relegation/promotion, ageing, transfers, signings, manager changes.
-4. Simulate the current season up to the configured round.
-5. Pick the showcase fixture and its most watchable realistic simulation.
-6. Write public data, hidden truths and the realism report.
-"""
+"""End-to-end generation of the league universe."""
 
 from __future__ import annotations
 
@@ -86,9 +75,7 @@ def _players_public(u: Universe, seen: dict[str, dict]) -> None:
                                           "preferred_foot": p.preferred_foot})
 
 
-# ---------------------------------------------------------------------------
 # Showcase selection
-# ---------------------------------------------------------------------------
 
 # (weakness on one team, things on the other team that exploit it)
 _EXPLOITS = {
@@ -181,9 +168,7 @@ def narrative_score(events: list[dict], home_id: str, away_id: str, truths: list
     return score, detail
 
 
-# ---------------------------------------------------------------------------
 # Main pipeline
-# ---------------------------------------------------------------------------
 
 
 def generate(cfg: SimConfig) -> dict:
@@ -205,7 +190,7 @@ def generate(cfg: SimConfig) -> dict:
     clubs = {c.club_id: c for c in u.clubs}
     names = {c.club_id: c.name for c in u.clubs}
 
-    # ---------------- previous season
+    # Previous season
     div1 = u.division(1)
     div2 = u.division(2)
     euro_prev_q = {}
@@ -237,7 +222,7 @@ def generate(cfg: SimConfig) -> dict:
                    if r["club_id"] not in relegated), reverse=True)
     underperformers = [cid for _g, cid in gaps[: cfg.manager_changes]]
 
-    # ---------------- offseason
+    # Offseason
     print("Offseason: promotion, relegation, transfers, manager changes...", flush=True)
     off_log, style_truths = run_offseason(u, relegated, promoted, underperformers, cur_year,
                                           cfg.transfers_per_summer, rng)
@@ -250,7 +235,7 @@ def generate(cfg: SimConfig) -> dict:
     _players_public(u, players_seen)
     snap_cur = _snapshot(u, cur)
 
-    # ---------------- current season
+    # Current season
     div1 = u.division(1)
     euro_cur_q = {}
     for r in table1[: cfg.champions_league_spots]:
@@ -290,7 +275,7 @@ def generate(cfg: SimConfig) -> dict:
             upcoming_sel[cid] = tracker.selection(clubs[cid], f.date)
             upcoming_news += tracker.news(clubs[cid], f.date, f)
 
-    # ---------------- showcase
+    # Showcase
     print("Choosing the showcase match...", flush=True)
     scored = []
     for f in upcoming:
@@ -334,7 +319,7 @@ def generate(cfg: SimConfig) -> dict:
     }
     show_lineups = [{**row, "season": cur} for row in show_res.lineups]
 
-    # ---------------- write public data
+    # Write public data
     print("Writing data...", flush=True)
     _write_json(os.path.join(pub, "league.json"), {
         "leagues": {str(k): v for k, v in LEAGUE_NAMES.items()},
@@ -389,7 +374,7 @@ def generate(cfg: SimConfig) -> dict:
     _write_json(os.path.join(show_dir, "showcase_match.json"), show_meta)
     _write_csv(os.path.join(show_dir, "showcase_lineups.csv"), show_lineups)
 
-    # ---------------- write hidden truths
+    # Write hidden truths
     _write_json(os.path.join(hid, "answer_key.json"), {
         "warning": "HIDDEN. Never expose this folder to agents. Used only to score their insights.",
         "seasons": {prev: [asdict(t) for t in truths_prev], cur: [asdict(t) for t in truths_cur]},
@@ -405,7 +390,7 @@ def generate(cfg: SimConfig) -> dict:
                       "fixture. All historical matches are single, unselected simulations.",
     })
 
-    # ---------------- realism report
+    # Realism report
     print("Building realism report...", flush=True)
     report = realism.build_report(out, prev, cur, truths_prev, truths_cur)
     elapsed = time.time() - t0

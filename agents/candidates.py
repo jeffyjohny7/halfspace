@@ -1,8 +1,4 @@
-"""Turn the live match into candidate on-screen items, each with checkable facts.
-
-Everything here is computed by the analytics engine; the Analyst agent only ranks
-and explains these candidates. That keeps every number on screen traceable.
-"""
+"""Turn the live match into candidate on-screen items, each with checkable facts."""
 
 from __future__ import annotations
 

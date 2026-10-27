@@ -43,7 +43,7 @@ export async function renderPeople(main, S) {
         && (!q || p.name.toLowerCase().includes(q)))
       .sort((a, b) => SORTS[key][1](b[1]) - SORTS[key][1](a[1]) || b[1].minutes - a[1].minutes);
     const el = main.querySelector("#plist");
-    el.innerHTML = `<div class="tbl-wrap"><table class="tbl players">
+    el.innerHTML = `<div class="tbl-wrap"><table class="tbl ptbl">
       <thead><tr><th>Player</th><th class="hide-s">Club</th><th>Pos</th><th title="Appearances">Apps</th><th>Goals</th><th>Assists</th>
         ${analyst ? `<th class="hide-s">xG</th><th class="hide-s" title="Chances created">Chances</th>` : ""}<th>Rating</th></tr></thead>
       <tbody>${list.slice(0, F.shown).map(([pid, p]) => `<tr style="--k:${kitColour(p.club)}">
@@ -51,7 +51,7 @@ export async function renderPeople(main, S) {
         <td class="hide-s"><a class="clublink" href="${clubHref(p.club)}">${crest(p.club, "c")}${esc(club(p.club).code)}</a></td>
         <td>${esc(p.pos)}</td><td>${p.apps}</td><td>${p.goals}</td><td>${p.assists}</td>
         ${analyst ? `<td class="hide-s">${num(p.xg, 1)}</td><td class="hide-s">${p.key_passes}</td>` : ""}
-        <td>${p.rating ? `<span class="rt-chip ${rtBand(p.rating)}">${num(p.rating, 2)}</span>` : "–"}</td></tr>`).join("")}</tbody></table></div>
+        <td>${p.rating ? `<span class="rt-chip ${rtBand(p.rating, 2)}">${num(p.rating, 2)}</span>` : "–"}</td></tr>`).join("")}</tbody></table></div>
       <p class="muted small">${list.length} players${list.length > F.shown ? `. <button class="linkbtn" id="more">Show more</button>` : ""}</p>`;
     el.querySelector("#more")?.addEventListener("click", () => { F.shown += 60; draw(); });
   };

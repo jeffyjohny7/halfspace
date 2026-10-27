@@ -1,14 +1,4 @@
-"""Player match ratings: a transparent 0-10 score built from what each player did.
-
-Every player starts at 6.0 when he comes on. Each action moves the rating by a fixed,
-published amount (ACTIONS), so any rating can be explained line by line: "7.4 = 6.0 +
-goal 1.0 + 3 key passes 0.45 - 6 misplaced passes 0.21 ...". The same code rates the live
-match at any clock and every match of both seasons (for season averages), so a live
-rating and a season average are directly comparable.
-
-Weights were calibrated on the 2025-26 season so an ordinary game lands between 6.5 and
-7, a strong one around 7.5-8, and only a standout one above 8.5 (see calibrate()).
-"""
+"""Player match ratings: a transparent 0-10 score built from what each player did."""
 
 from __future__ import annotations
 
@@ -104,11 +94,7 @@ def _on_pitch(lineups: pd.DataFrame, end_minute: pd.Series | dict) -> pd.DataFra
 
 
 def actions(ev: pd.DataFrame, shots: pd.DataFrame, lineups: pd.DataFrame) -> pd.DataFrame:
-    """Every rated action: match_id, team_id, player_id, clock_s, minute, code, delta.
-
-    ev: events of one or more matches (raw columns); shots: build.build_shots output for them;
-    lineups: lineup rows (match_id, team_id, player_id, position, started, minute_on, minute_off).
-    """
+    """Every rated action: match_id, team_id, player_id, clock_s, minute, code, delta."""
     cols = ["match_id", "team_id", "player_id", "clock_s", "minute"]
     ev = ev[ev.player_id.notna()]
     base = ev[cols].copy()

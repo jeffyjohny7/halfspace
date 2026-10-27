@@ -20,9 +20,8 @@ class SimConfig:
     relegation_spots: int = 3          # bottom 3 go down
     automatic_promotion: int = 2       # top 2 of the second tier go up...
     playoff_places: tuple[int, int] = (3, 6)  # ...plus the winner of a 3rd-6th playoff
-    # European places, decided by the top-division table.
-    # 5 Continental Cup spots (the fictional top European competition) assumes the country earned a European Performance Spot;
-    # set to 4 for a normal year.
+    # European places, decided by the top-division table. 5 Continental Cup spots (the fictional top European
+    # competition) assumes the country earned a European Performance Spot; set to 4 for a normal year.
     champions_league_spots: int = 5
     europa_league_spots: int = 1
     # Seasons
@@ -31,9 +30,7 @@ class SimConfig:
     current_rounds_played: int = 10    # history available to the Scout this season
     showcase_round: int = 11           # the match streamed "live"
     showcase_variants: int = 20        # simulate N versions, keep the best story
-    # The broadcaster's pick for the live match: (home club_id, away club_id), placed in the
-    # showcase round. Keeps the streamed match stable across regenerations (the player
-    # portraits and the demo are made for it). None = pick the round's best storyline.
+    # The broadcaster's pick for the live match: (home club_id, away club_id), placed in the showcase round.
     showcase_pair: tuple[str, str] | None = ("C01", "C20")
     # Offseason
     transfers_per_summer: int = 18

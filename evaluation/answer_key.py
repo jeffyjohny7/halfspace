@@ -1,14 +1,4 @@
-"""Score scouting findings against the hidden answer key.
-
-A finding matches a truth when it names the same subject (club for team traits,
-player for player traits) and the same category. Results:
-
-* recall      - share of planted truths the findings recovered
-* precision   - share of in-catalogue findings that match a truth. This is a
-                lower bound: an unplanted extreme can still be real, because
-                player ratings vary naturally.
-* calibration - precision by confidence level (high should beat medium)
-"""
+"""Score scouting findings against the hidden answer key."""
 
 from __future__ import annotations
 
@@ -103,8 +93,8 @@ def _subject(item: dict) -> str:
 
 def score(findings: list[dict], truths: list[dict], clubs: set[str] | None = None,
           support: list[bool | None] | None = None) -> dict:
-    """findings: dicts with scope, club_id, player_id, category, confidence, in_catalogue.
-    support: optional hidden-rating support per finding (see hidden_support)."""
+    """findings: dicts with scope, club_id, player_id, category, confidence, in_catalogue. support: optional
+    hidden-rating support per finding (see hidden_support)."""
     if clubs is not None:
         truths = [t for t in truths if t["club_id"] in clubs]
     catalogue = {t["trait"] for t in truths} | {f["category"] for f in findings if f.get("in_catalogue", True)}

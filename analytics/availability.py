@@ -1,9 +1,4 @@
-"""Team news, injuries, suspensions and line-ups.
-
-Everything here reads the clubs' published information: the team news issued
-before each match, the injury and suspension records, and past line-ups. Nothing
-looks ahead: an injured player's actual return date only appears once it has passed.
-"""
+"""Team news, injuries, suspensions and line-ups."""
 
 from __future__ import annotations
 

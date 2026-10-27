@@ -45,9 +45,7 @@ ES_WORDS = re.compile(r"\b(de|la|el|los|las|en|que|y|con|del|por|para|un|una|se|
 THRESHOLD = 3          # GroundednessEvaluator default: 3 or more out of 5 passes
 
 
-# ---------------------------------------------------------------------------
 # What gets scored
-# ---------------------------------------------------------------------------
 
 def _jsonl(path: Path) -> list[dict]:
     if not path.exists():
@@ -96,9 +94,7 @@ def ask_rows(log_path: Path) -> list[dict]:
     return rows
 
 
-# ---------------------------------------------------------------------------
 # Code evaluators (also usable as azure-ai-evaluation custom evaluators)
-# ---------------------------------------------------------------------------
 
 class NumbersTraced:
     """Share of the numbers in the response that appear in the context."""
@@ -125,9 +121,7 @@ class RightLanguage:
         return {"right_language": 0 if why else 1, "right_language_reason": why}
 
 
-# ---------------------------------------------------------------------------
 # Foundry: back-translation and the groundedness judge
-# ---------------------------------------------------------------------------
 
 def _env() -> dict[str, str]:
     env = dict(os.environ)
@@ -163,8 +157,7 @@ def _key(r: dict) -> str:
 
 
 async def back_translate(rows: list[dict], model: str | None, concurrency: int = 2) -> None:
-    """Fill row['response_en']: the text itself for English, a literal English translation otherwise.
-    Translations are cached, so running the evaluation again only translates new text."""
+    """Fill row['response_en']: the text itself for English, a literal English translation otherwise."""
     try:
         cache = json.loads(CACHE.read_text(encoding="utf-8")) if CACHE.exists() else {}
     except (OSError, ValueError):
@@ -188,7 +181,10 @@ async def back_translate(rows: list[dict], model: str | None, concurrency: int =
     agent = Agent(make_client("foundry", model=model),
                   "You translate football graphics and answers into English, literally and completely: keep every "
                   "claim, number, name and hedge exactly as written. Do not fix, add or soften anything.",
-                  name="BackTranslator", default_options=model_options("low"))
+                  name="BackTranslator",
+                  # reasoning effort only for reasoning models (gpt-5, o-series); gpt-4.1 rejects it
+                  default_options=model_options("low" if re.match(r"(gpt-5|o\d)", model or os.environ.get(
+                      "FOUNDRY_MODEL", "gpt-5-mini")) else None))
     gate = asyncio.Semaphore(concurrency)
 
     async def one(r: dict) -> None:
@@ -203,10 +199,16 @@ async def back_translate(rows: list[dict], model: str | None, concurrency: int =
 
     await asyncio.gather(*(one(r) for r in todo))
     failed = [r for r in todo if not r["response_en"]]
-    if failed:                                  # one more, slower pass for whatever was throttled
-        print(f"  {len(failed)} back-translations failed; trying them again one at a time...", flush=True)
-        gate = asyncio.Semaphore(1)
-        await asyncio.gather(*(one(r) for r in failed))
+    if failed:
+        why = failed[0].get("_why", "")
+        print(f"  {len(failed)} back-translations failed. First error: {why[:300]}", flush=True)
+        if len(failed) == len(todo) and not ("429" in why or "rate" in why.lower()):
+            sys.exit(f"Every back-translation failed with {model or 'FOUNDRY_MODEL'}, so the judging would be empty. "
+                     "Check that --judge-model is the deployment name shown in the Foundry portal.")
+        if "429" in why or "rate" in why.lower():   # throttled: one more, slower pass
+            print("  Trying them again one at a time...", flush=True)
+            gate = asyncio.Semaphore(1)
+            await asyncio.gather(*(one(r) for r in failed))
     failed = [r for r in todo if not r["response_en"]]
     for r in failed:
         print(f"  back-translation failed for {r['item']}: {r.get('_why', '')[:200]}")
@@ -221,7 +223,7 @@ async def back_translate(rows: list[dict], model: str | None, concurrency: int =
 
 class _OpenAIAudience:
     """The judge calls the Azure OpenAI endpoint directly, so its token is for Azure OpenAI's own audience
-    (the SDK otherwise asks for an ai.azure.com token). The Foundry upload keeps the plain credential."""
+    (the SDK otherwise asks for an ai.azure.com token)."""
     SCOPE = "https://cognitiveservices.azure.com/.default"
 
     def __init__(self, inner):
@@ -247,11 +249,7 @@ def _bearer(cred, scope: str) -> str:
 
 
 def _judge_routes(env: dict[str, str], deployment: str, cred) -> list[tuple[str, dict, object]]:
-    """Ways to reach the judge model, most standard first: (label, model config, credential or None).
-
-    1. the resource's Azure OpenAI endpoint (needs the Cognitive Services OpenAI User role on the resource);
-    2. the resource's OpenAI v1 endpoint with an Entra token;
-    3. the project's OpenAI v1 endpoint, the same door the broadcast agents use (project access is enough)."""
+    """Ways to reach the judge model, most standard first: (label, model config, credential or None)."""
     from azure.ai.evaluation import AzureOpenAIModelConfiguration, OpenAIModelConfiguration
 
     aoai = openai_endpoint(env)
@@ -372,9 +370,7 @@ def run_offline(rows: list[dict]) -> list[dict]:
     return rows
 
 
-# ---------------------------------------------------------------------------
 # Report
-# ---------------------------------------------------------------------------
 
 def broadcast_stats(run_dir: Path) -> dict:
     cues = _jsonl(run_dir / "cues.jsonl")

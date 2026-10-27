@@ -1,13 +1,4 @@
-"""The fictional football universe: clubs, players, managers and their hidden truths.
-
-Two layers live here:
-
-* **Public facts** - names, positions, formations, managers. Agents may see these.
-* **Hidden truths** - player attributes and team style. Only the match engine
-  sees them. A subset is deliberately pushed to extremes ("planted traits") and
-  written to the answer key, so we can later score whether the AI agents
-  discovered them from match events alone.
-"""
+"""The fictional football universe: clubs, players, managers and their hidden truths."""
 
 from __future__ import annotations
 
@@ -17,9 +8,7 @@ from dataclasses import asdict, dataclass, field
 
 from . import names
 
-# ---------------------------------------------------------------------------
 # Positions and formations
-# ---------------------------------------------------------------------------
 
 POSITIONS = ["GK", "RB", "CB", "LB", "DM", "CM", "AM", "RW", "LW", "ST"]
 
@@ -65,9 +54,8 @@ for _pos, _offs in _POS_OFFSETS.items():
 SQUAD_TEMPLATE = {"GK": 3, "RB": 2, "CB": 4, "LB": 2, "DM": 2, "CM": 4, "AM": 2,
                   "RW": 2, "LW": 2, "ST": 3}
 
-# Formation slots: (slot name, required squad position, x, y) in the team's own
-# frame. x runs from own goal (0) to the opponent goal (105); y runs from the
-# team's right touchline (0) to its left touchline (68).
+# Formation slots: (slot name, required squad position, x, y) in the team's own frame. x runs from own goal
+# (0) to the opponent goal (105); y runs from the team's right touchline (0) to its left touchline (68).
 FORMATIONS: dict[str, list[tuple[str, str, float, float]]] = {
     "4-3-3": [("GK", "GK", 5, 34), ("RB", "RB", 25, 8), ("RCB", "CB", 20, 24),
               ("LCB", "CB", 20, 44), ("LB", "LB", 25, 60), ("DM", "DM", 35, 34),
@@ -119,9 +107,7 @@ PHILOSOPHIES: dict[str, dict] = {
                            "counter_focus": 0.5, "shot_propensity": 0.5}},
 }
 
-# ---------------------------------------------------------------------------
 # Data classes
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -212,9 +198,7 @@ class Truth:
     position: str | None = None
 
 
-# ---------------------------------------------------------------------------
 # Trait catalogue: what we can plant, and how it should show up in the data.
-# ---------------------------------------------------------------------------
 
 TEAM_TRAITS = {
     # name: (style/trait key, extreme value, direction, description, expected signal)
@@ -272,9 +256,7 @@ PLAYER_TRAITS = {
 }
 
 
-# ---------------------------------------------------------------------------
 # Building the universe
-# ---------------------------------------------------------------------------
 
 
 class UniverseBuilder:
@@ -394,9 +376,6 @@ def build_universe(seed: int, top_size: int = 20, second_size: int = 24) -> Univ
     b.rng.shuffle(towns)
     clubs: list[Club] = []
     # Top division: a few elite clubs, a big middle, a weak tail.
-    # Club strength from evenly spaced normal quantiles (plus a little noise) so every
-    # seed gives a realistic spread: a small elite, a big middle, a weak tail.
-    # Real leagues have a stretched top and a compressed relegation scrap.
     top_q = [70 + (1.8 if z > 0 else 1.35) * z + b.rng.gauss(0, 0.35) for z in _normal_quantiles(top_size)]
     top_q[0] += 2.0
     top_q[1] += 1.3
@@ -412,9 +391,7 @@ def build_universe(seed: int, top_size: int = 20, second_size: int = 24) -> Univ
     return Universe(clubs, b)
 
 
-# ---------------------------------------------------------------------------
 # Lineups
-# ---------------------------------------------------------------------------
 
 
 def best_xi(club: Club, exclude: set[str] | None = None) -> list[tuple[str, Player]]:
@@ -443,9 +420,7 @@ RELATED_POSITIONS = {
 }
 
 
-# ---------------------------------------------------------------------------
 # Planting traits and the answer key
-# ---------------------------------------------------------------------------
 
 
 def _percentile(value: float, population: list[float]) -> float:
@@ -521,8 +496,8 @@ def plant_traits(clubs: list[Club], division: int, season: str, rng: random.Rand
 
 
 def _restore_overall(player: Player, target: float, planted_attr: str) -> None:
-    """A planted weakness should not drop the player out of the team: raise his
-    other key attributes so his overall rating is unchanged."""
+    """A planted weakness should not drop the player out of the team: raise his other key attributes so his
+    overall rating is unchanged."""
     keys = [k for k in KEY_ATTRS[player.position] if k != planted_attr]
     for _ in range(40):
         gap = target - player.overall
@@ -563,9 +538,7 @@ def refresh_truths(truths: list[Truth], clubs: list[Club], season: str) -> list[
     return out
 
 
-# ---------------------------------------------------------------------------
 # Offseason: ageing, transfers, promoted-club signings, manager changes
-# ---------------------------------------------------------------------------
 
 
 @dataclass

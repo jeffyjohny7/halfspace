@@ -1,4 +1,4 @@
-"""Fast checks for the synthetic league generator. Run with:  uv run pytest -q"""
+"""Fast checks for the synthetic league generator. Run with: uv run pytest -q"""
 
 from __future__ import annotations
 

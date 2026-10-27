@@ -34,10 +34,8 @@ SUN_SLOTS = ["14:00", "16:30"]
 SEASON_NOTE = re.compile(r"\s*\((?:\d{4}-\d{2}: [^)]*)\)")
 
 
-
 def portrait_kits() -> dict[str, str]:
-    """player_id -> the club whose kit he wears in his portrait (web/assets/players/kits.json).
-    A portrait is shown only while he plays for that club, so a transfer never shows the old shirt."""
+    """player_id -> the club whose kit he wears in his portrait (web/assets/players/kits.json)."""
     path = ROOT / "web" / "assets" / "players" / "kits.json"
     kits = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     return {pid: club for pid, club in kits.items()
@@ -70,12 +68,11 @@ def short_codes(clubs: pd.DataFrame) -> dict[str, str]:
     return out
 
 
-# ---------------------------------------------------------------------------------------------- outlook
+# Outlook
 
 def outlook_model(store, season: str, prev: str | None):
     """Expected goals for a fixture from each side's chance quality for and against (xG per match), this
-    season weighted fully and last season's top-flight numbers at half weight, with the league's home
-    edge. Poisson scorelines give the win / draw / win chances."""
+    season weighted fully and last season's top-flight numbers at half weight, with the league's home edge."""
     tm = store.table("team_match")
     tm = tm[(tm.stage == "league") & (tm.division == 1)]
     cur, old = tm[tm.season == season], tm[tm.season == prev] if prev else tm.iloc[0:0]
@@ -106,7 +103,7 @@ def outlook_model(store, season: str, prev: str | None):
     return predict, {"league_xg_per_team_match": r2(avg), "home_edge": r2(home_edge ** 2)}
 
 
-# ---------------------------------------------------------------------------------------------- tables
+# Tables
 
 def form_and_xg(store, season: str, division: int) -> dict:
     tm = store.table("team_match")
@@ -143,7 +140,7 @@ def tables(a: Analyst, season: str) -> dict:
     return out
 
 
-# ---------------------------------------------------------------------------------------------- players
+# Players
 
 POS_GROUP = {"GK": "GK", "CB": "DF", "RB": "DF", "LB": "DF", "RWB": "DF", "LWB": "DF", "DM": "MF", "CM": "MF",
              "AM": "MF", "RM": "MF", "LM": "MF", "RW": "FW", "LW": "FW", "ST": "FW", "CF": "FW"}
@@ -235,7 +232,7 @@ def leaders(agg: pd.DataFrame, rounds: int) -> dict:
     return out
 
 
-# ---------------------------------------------------------------------------------------------- matches
+# Matches
 
 def season_matches(a: Analyst, season: str, matches: pd.DataFrame) -> dict:
     s = a.store
@@ -280,7 +277,7 @@ def season_matches(a: Analyst, season: str, matches: pd.DataFrame) -> dict:
     return out
 
 
-# ---------------------------------------------------------------------------------------------- clubs
+# Clubs
 
 def season_clubs(a: Analyst, season: str, club_ids: list[str], players: dict) -> dict:
     s = a.store
@@ -327,7 +324,7 @@ def season_clubs(a: Analyst, season: str, club_ids: list[str], players: dict) ->
     return out
 
 
-# ---------------------------------------------------------------------------------------------- fixtures
+# Fixtures
 
 def fixtures(a: Analyst, predict, codes: dict) -> list[dict]:
     s = a.store
@@ -369,7 +366,7 @@ def fixtures(a: Analyst, predict, codes: dict) -> list[dict]:
     return out
 
 
-# ---------------------------------------------------------------------------------------------- main
+# Main
 
 def export(data_dir: str, out_dir: Path) -> dict:
     a = Analyst(data_dir)

@@ -1,5 +1,4 @@
-"""Instructions for each agent. Short, strict, and the same rules everywhere:
-numbers come from tools or given facts, never from the model."""
+"""Instructions for each agent."""
 
 COMMON_RULES = """
 Hard rules:

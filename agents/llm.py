@@ -1,10 +1,4 @@
-"""Model access: Foundry (keyless) or offline, plus a resilient call wrapper.
-
-Every LLM call goes through `ask()`: timeout, retry with back-off, schema validation,
-and a clear failure result so the caller can fall back to a deterministic template.
-The broadcast never stops because a model call failed. A call stopped by the Foundry
-guardrail (content filter or Prompt Shields) is not retried: `blocked` says which control fired.
-"""
+"""Model access: Foundry (keyless) or offline, plus a resilient call wrapper."""
 
 from __future__ import annotations
 
@@ -62,10 +56,7 @@ def _filtered_keys(obj, parent: str | None = None) -> list[str]:
 
 
 def guardrail_hit(e: BaseException) -> str | None:
-    """Which guardrail control stopped a model call, or None if `e` is some other error.
-
-    Azure answers a blocked prompt with HTTP 400, code content_filter, and a result per control
-    (jailbreak, hate, violence...); Agent Framework raises ChatClientContentFilterException for it."""
+    """Which guardrail control stopped a model call, or None if `e` is some other error."""
     try:
         from agent_framework.exceptions import ChatClientContentFilterException as CF
     except ImportError:                       # pragma: no cover
@@ -161,9 +152,7 @@ def _unanswered_calls(resp: Any) -> int:
 
 async def ask(agent: Any, prompt: str, schema: type[BaseModel], timeout_s: float = 90.0, retries: int = 1,
               options: dict | None = None, session: Any = None) -> CallResult:
-    """session: a conversation kept across calls (the Scout's rewrite). A failed attempt can leave it pointing at a
-    model turn whose tool calls never got their results; the service then refuses every later turn ("No tool
-    output found for function call"). So each retry starts a fresh session, and the result says which one to keep."""
+    """session: a conversation kept across calls (the Scout's rewrite)."""
     t0 = time.time()
     last = None
     errors: list[str] = []
@@ -215,16 +204,10 @@ def _json_block(text: str) -> str:
     return text[start:end + 1] if start >= 0 else text
 
 
-# ---------------------------------------------------------------------------
 # Scripted model for tests and dry runs (no network)
-# ---------------------------------------------------------------------------
 
 def scripted_client(responder: Callable[[type | None, list], Any]):
-    """A chat client whose replies come from `responder(response_format, messages)`.
-
-    The responder returns reply text (usually JSON), or a list of Content items such as
-    function calls, which the framework then executes against the real MCP tools.
-    """
+    """A chat client whose replies come from `responder(response_format, messages)`."""
     from agent_framework import BaseChatClient, ChatResponse, FunctionInvocationLayer, Message
 
     class ScriptedChatClient(FunctionInvocationLayer, BaseChatClient):

@@ -2,6 +2,16 @@
 
 Built for the Microsoft × Premier League *Inside the Game* hackathon.
 
+[![tests](https://github.com/jeffyjohny7/halfspace/actions/workflows/tests.yml/badge.svg)](https://github.com/jeffyjohny7/halfspace/actions/workflows/tests.yml)
+
+**Try it:** [jeffyjohny7.github.io/halfspace](https://jeffyjohny7.github.io/halfspace/) (the league hub and the
+match replay with the agents' checked graphics, no install). **Demo video:** VIDEO_LINK.
+How to test everything, including the live agents: [For judges](#for-judges).
+
+| Home | Live match | Live ratings | My Halfspace |
+|---|---|---|---|
+| ![Home](docs/images/home.webp) | ![Live match](docs/images/live.webp) | ![Ratings](docs/images/ratings.webp) | ![My Halfspace](docs/images/me.webp) |
+
 1. **`matchsim`** generates a fictional, football-realistic league: two seasons of
    event-level data with promotion and relegation, European midweeks, transfers,
    manager changes and a hidden **answer key** of planted strengths and weaknesses.
@@ -29,11 +39,20 @@ number an agent says comes from a tool, with event references a verifier can che
 All clubs, players, managers and competitions are invented. No real names,
 logos or match data are used.
 
+## For judges
+
+| What | How | Needs |
+|---|---|---|
+| League hub and match replay | Open [the hosted app](https://jeffyjohny7.github.io/halfspace/). Press play on the 12:30 match; switch Casual / Analyst and the language | A browser |
+| The whole system without Azure | `uv sync` and `uv run pytest -q` (44 tests). Then `uv run scripts/generate.py` and `uv run scripts/build_stats.py` (about 3 minutes), `uv run scripts/run_broadcast.py --dry-run` (the full agent team with a scripted model that makes deliberate mistakes) and `uv run scripts/serve_web.py --offline` (My Halfspace and alerts with template text) | Python 3.12 and [uv](https://docs.astral.sh/uv/) |
+| The live agents | A Foundry project with a `gpt-5-mini` deployment (`setup-foundry.ps1` creates one), `az login`, then the Quick start below. Ask, learning from Ask and written alerts run on `serve_web.py` | An Azure subscription |
+
+The evaluation reports the agents are judged by are in [`data/reports/`](data/reports/).
+
 ## Quick start (Windows PowerShell, inside the project folder)
 
 ```powershell
-uv add numpy pandas pyarrow "mcp[cli]>=1.24,<2" agent-framework-core==1.22.0 agent-framework-foundry==1.15.0 azure-identity "azure-monitor-opentelemetry>=1.8.10,<2"
-uv add --dev pytest
+uv sync                             # installs everything from uv.lock
 uv run scripts/generate.py          # 1. the league: about 1-2 minutes
 uv run scripts/build_stats.py       # 2. derived statistics: about 40 seconds
 uv run scripts/eval_scout.py        # 3. score the scouting against the answer key
@@ -468,4 +487,5 @@ across halves; sort by it to replay a feed.
 | `scripts/eval_attacks.py` | Prompt attacks on Ask and which layer stopped each one |
 | `scripts/` | `generate.py`, `build_stats.py`, `eval_scout.py`, `replay_feed.py`, `run_broadcast.py`, `export_web.py`, `serve_web.py`, `eval_agents.py`, `eval_attacks.py` |
 | `web/` | Halfspace, the fan app: `index.html`, `styles.css`, `hub.css`, `app.js`, `views/` (one file per section, `me.js` is My Halfspace), `lib/` (`fan.js`: profile and alerts), `assets/` |
+| `.github/workflows/` | `tests.yml` runs the tests on every push; `pages.yml` publishes `web/` as the hosted app |
 | `tests/` | 44 tests: generator (including a fixture list that alternates home and away), stats, live layer, MCP server, hidden-data guard, availability (no injured or suspended player ever plays; no future return dates leak), verifier, director, the whole team offline and in a dry run, the Ask endpoint (a made-up number never reaches a fan), match ratings (every rating adds up to its reasons; no future substitute is rated), the evaluation's code checks, trace attributes, guardrail blocks (recognised, not retried, shown in the fan's language), the attack report (a leak is reported, never hidden), fan memory (only real clubs and players, nothing kept unless the fan switched it on, forget really deletes), alerts (never before the fan's minute, never more than eight, no count of what's to come), the fan endpoints |

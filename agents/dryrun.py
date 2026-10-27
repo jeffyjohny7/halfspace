@@ -1,16 +1,4 @@
-"""A scripted stand-in for the model, for dry runs and tests (no Azure needed).
-
-It behaves like a fallible model on purpose, so every safety path runs for real:
-* the Scout calls the real MCP tools, then writes a brief with one invented storyline
-  (the BriefCheck must reject it and ask for a rewrite);
-* the Tactical Analyst calls a live tool and adds one angle with a made-up number
-  (the Verifier must drop it);
-* the Fan Lens slips a wrong number into some first drafts and leaves out a variant
-  (the Verifier must send them back), and always gets one cue type wrong (the safe
-  template must take over);
-* the Recap writes from the fact sheet.
-The made-up number is always 4242, so tests can check it never reaches the screen.
-"""
+"""A scripted stand-in for the model, for dry runs and tests (no Azure needed)."""
 
 from __future__ import annotations
 

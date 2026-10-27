@@ -1,16 +1,4 @@
-"""Live match intelligence over a stream of events.
-
-Everything is computed from events up to a given match clock (`clock_s`, seconds
-of play since kick-off), so the same code serves a live feed and a replay.
-
-* state()          scoreboard, xG, possession, field tilt, pressing, momentum,
-                   control-vs-chaos, rhythm
-* key_moments()    goals, big chances, penalties, cards, subs, momentum swings,
-                   pressure spells - each with an importance score and event refs
-* track()          checks pre-match predictions against what is happening
-* player()         one player's live line (for a player-focus viewing mode), with his rating
-* ratings()        every player's match rating so far, explained (see rating.py)
-"""
+"""Live match intelligence over a stream of events."""
 
 from __future__ import annotations
 
@@ -81,7 +69,7 @@ class LiveMatch:
             pass
         return cls(store, store.showcase_events(), store.showcase_meta, store.showcase_lineups, ref)
 
-    # ------------------------------------------------------------------ helpers
+    # Helpers
     def upto(self, clock_s: float) -> pd.DataFrame:
         return self.ev[self.ev.clock_s <= clock_s]
 
@@ -122,7 +110,7 @@ class LiveMatch:
             "red_cards": int(cards.card.astype(str).isin(["red", "second_yellow"]).sum()),
         }
 
-    # ------------------------------------------------------------------ state
+    # State
     def state(self, clock_s: float) -> dict:
         clock_s = min(float(clock_s), self.end_clock)
         ev = self.upto(clock_s)
@@ -174,7 +162,7 @@ class LiveMatch:
             start += block_s
         return out
 
-    # ------------------------------------------------------------------ key moments
+    # Key moments
     def key_moments(self, clock_s: float, since_s: float = 0.0, min_importance: float = 0.0) -> list[dict]:
         clock_s = min(float(clock_s), self.end_clock)
         ev = self.upto(clock_s)
@@ -269,7 +257,7 @@ class LiveMatch:
             t += 60.0
         return out
 
-    # ------------------------------------------------------------------ predictions
+    # Predictions
     def measure(self, p: dict, clock_s: float) -> tuple[float, int]:
         """Current value of a prediction's measure, and its sample size."""
         ev = self.upto(clock_s)
@@ -337,7 +325,7 @@ class LiveMatch:
                         "full_match_pace": pace, "status": status, "minute": minute})
         return clean(out)
 
-    # ------------------------------------------------------------------ ratings
+    # Ratings
     def _played_by(self, clock_s: float) -> pd.DataFrame:
         """Line-up rows of players who have been on the pitch by clock_s (no future substitutions)."""
         ev = self.upto(clock_s)
@@ -372,7 +360,7 @@ class LiveMatch:
                                                           "rating": round(float(best.rating.iloc[0]), 1)},
                       "how": "Everyone starts at 6.0; each action adds or removes a fixed amount (rating_scale)."}, nd=2)
 
-    # ------------------------------------------------------------------ player focus
+    # Player focus
     def player(self, player_id: str, clock_s: float) -> dict:
         clock_s = min(float(clock_s), self.end_clock)
         ev = self.upto(clock_s)

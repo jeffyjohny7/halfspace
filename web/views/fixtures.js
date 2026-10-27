@@ -5,10 +5,11 @@ import { L, club, crest, kitColour, teamVars, kitInk, probBar, roundFixtures, da
 import { pctBar } from "../lib/charts.js";
 import { liveState } from "../lib/live.js";
 import { liveBadge } from "./home.js";
+import { ratingBand } from "../lib/rating.js";
 
 const seasonOfMatch = (id) => `${id.slice(0, 4)}-${id.slice(4, 6)}`;
 
-// ------------------------------------------------------------------ round list
+// Round list
 
 export function renderMatches(main, S, arg) {
   const d = L.data;
@@ -83,7 +84,7 @@ function resultRow(r, S) {
   </article>`;
 }
 
-// ------------------------------------------------------------------ preview
+// Preview
 
 export async function renderFixture(main, S, id) {
   const d = L.data;
@@ -173,7 +174,7 @@ export async function renderFixture(main, S, id) {
   </div>`;
 }
 
-// ------------------------------------------------------------------ result
+// Result
 
 const STAT_ROWS = [
   ["xg", "Chance quality (xG)", (v) => num(v, 2)],
@@ -226,4 +227,4 @@ export async function renderResult(main, S, id) {
   </div>`;
 }
 
-export function rtBand(r) { return r >= 8 ? "great" : r >= 7 ? "good" : r >= 6 ? "ok" : "poor"; }
+export const rtBand = (r, digits) => ratingBand(r, digits);

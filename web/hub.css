@@ -1,6 +1,4 @@
-/* Halfspace hub: the league around the live match.
-   Same night pitch and chalk as the match centre. Club kits carry the colour; crown gold marks
-   the league's best (leaders, champions, the selected season); live red only for what's live. */
+/* Halfspace hub: the league around the live match. */
 :root {
   --gold: #E9B949;
   --gold-ink: #F6DA8E;
@@ -21,7 +19,7 @@ a.clublink { text-decoration: none; display: inline-flex; align-items: center; g
 a.clublink:hover { text-decoration: underline; }
 img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-align: middle; }
 
-/* ---------------------------------------------------------------- top bar */
+/* top bar */
 .topbar { gap: 22px; }
 .top-ctrl { margin-left: auto; display: flex; align-items: center; gap: 12px; flex: none; }
 .season-pick select, .rounds select, .filters select, .filters input {
@@ -32,7 +30,7 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
 }
 .season-pick select { border-color: color-mix(in srgb, var(--gold) 55%, var(--line)); color: var(--gold-ink); }
 .filters input { background-image: none; padding-right: 14px; min-width: 220px; }
-.segs { display: inline-flex; }
+.segs { display: inline-flex; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .segs .seg { text-decoration: none; display: inline-flex; align-items: center; }
 .tabs a { position: relative; }
 .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--live); margin-left: 6px;
@@ -41,7 +39,7 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 70%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
 @media (prefers-reduced-motion: reduce) { .live-dot, .badge.live i, .badge.soon i { animation: none; } }
 
-/* ---------------------------------------------------------------- shared page parts */
+/* shared page parts */
 .page { max-width: var(--page-max); margin: 0 auto; padding: 0 var(--gutter) 64px; }
 .page-head { padding: 34px 0 22px; position: relative; }
 .page-head h1 { font-size: clamp(40px, 6vw, 76px); line-height: 0.95; margin: 4px 0 10px; font-weight: 750; }
@@ -99,7 +97,7 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
 .rt-chip.good { background: var(--rt-good); } .rt-chip.great { background: var(--rt-great); }
 .rt-chip.big { font-size: 24px; padding: 4px 12px; }
 
-/* ---------------------------------------------------------------- home */
+/* home */
 .home-hero { position: relative; isolation: isolate; overflow: hidden; display: grid; min-height: 470px;
   padding: 46px var(--gutter) 40px; align-items: end; }
 .hero-bg { position: absolute; inset: 0; z-index: -3; background-size: cover; background-position: center 35%;
@@ -177,13 +175,13 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
 .lead-list a::before { content: counter(lead); color: var(--chalk-3); font-size: 13px; }
 .lead-list b { font-size: 18px; font-variation-settings: "wdth" 80; }
 
-/* ---------------------------------------------------------------- tables */
+/* tables */
 .tbl-wrap { overflow-x: auto; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 15px; }
 .tbl th { text-align: left; font-weight: 500; color: var(--chalk-3); font-size: 13px; padding: 8px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .tbl td { padding: 8px 8px; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); white-space: nowrap; }
 .tbl th:not(:nth-child(2)), .tbl td:not(.club):not(.pl) { text-align: center; }
-.tbl.players th:first-child { text-align: left; }
+.tbl.ptbl th:first-child { text-align: left; }
 .tbl td.pos { width: 34px; position: relative; color: var(--chalk-2); font-weight: 600; }
 .tbl tr[class*="z-"] td.pos::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--zc); }
 .tbl tr.z-cup { --zc: var(--z-cup); } .tbl tr.z-shield { --zc: var(--z-shield); } .tbl tr.z-up { --zc: var(--z-up); }
@@ -209,7 +207,7 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
 .tbl.mini td, .tbl.mini th { padding: 7px 5px; }
 .champ-tag { margin-left: 8px; }
 
-/* ---------------------------------------------------------------- matches */
+/* matches */
 .rounds { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
 .day { font-size: 18px; margin: 24px 0 10px; color: var(--chalk-2); font-weight: 600; }
 .fx-list { display: grid; gap: 10px; }
@@ -293,7 +291,7 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
 .potm-row .rt-chip { flex: none; }
 .potm-row b { font-size: 26px; }
 
-/* ---------------------------------------------------------------- stats */
+/* stats */
 .boards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .board { background: var(--turf-1); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
 .board.wide { grid-row: span 2; }
@@ -366,7 +364,7 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
 .spell-key { display: flex; gap: 16px; font-size: 13px; color: var(--chalk-2); margin-top: 8px; }
 .spell-key i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
 
-/* ---------------------------------------------------------------- clubs */
+/* clubs */
 .club-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
 .club-tile { position: relative; overflow: hidden; display: grid; grid-template-columns: 64px 1fr; grid-template-rows: auto auto auto; gap: 2px 14px;
   align-items: center; padding: 16px; text-decoration: none; border-radius: 14px; border: 1px solid var(--line);
@@ -421,11 +419,11 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
 .squad-list .sq-st { grid-column: 2 / span 2; font-size: 12px; color: var(--chalk-3); }
 .squad-list a:hover .n { text-decoration: underline; }
 
-/* ---------------------------------------------------------------- players */
+/* players */
 .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 14px; }
-.tbl.players td.pl a { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 500; }
-.tbl.players td.pl a:hover span { text-decoration: underline; }
-.tbl.players td.pl img { width: 34px; height: 40px; object-fit: cover; object-position: top; border-radius: 6px; background: color-mix(in srgb, var(--k) 40%, var(--turf-2)); }
+.tbl.ptbl td.pl a { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 500; }
+.tbl.ptbl td.pl a:hover span { text-decoration: underline; }
+.tbl.ptbl td.pl img { width: 34px; height: 40px; object-fit: cover; object-position: top; border-radius: 6px; background: color-mix(in srgb, var(--k) 40%, var(--turf-2)); }
 .pl-blank { width: 34px; height: 40px; display: grid; place-items: center; border-radius: 6px; background: color-mix(in srgb, var(--k) 30%, var(--turf-2)); }
 .player-head { margin: 0 calc(50% - 50vw); padding: 30px calc(50vw - 50%) 0; display: grid; grid-template-columns: auto 1fr; gap: 30px; align-items: end;
   background: linear-gradient(110deg, color-mix(in srgb, var(--k) 65%, #000), color-mix(in srgb, var(--k) 30%, var(--turf-0)) 50%, var(--turf-0) 90%);
@@ -452,7 +450,7 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
 .rt-bars a:hover span { filter: brightness(1.15); }
 .best-list { padding-left: 18px; } .best-list li { margin-bottom: 6px; }
 
-/* ---------------------------------------------------------------- match bar and ratings */
+/* match bar and ratings */
 #matchbar { border-bottom: 1px solid var(--line); background: var(--turf-1); }
 .mbar { max-width: var(--page-max); margin: 0 auto; padding: 8px var(--gutter); display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
 .mbar-back { color: var(--chalk-2); font-size: 14px; text-decoration: none; }
@@ -500,7 +498,7 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
 .rrow .ph svg { width: 32px; height: 32px; }
 .rrow .nm { display: flex; flex-direction: column; } .rrow .nm small { color: var(--chalk-3); font-size: 13px; }
 
-/* ---------------------------------------------------------------- responsive */
+/* responsive */
 @media (max-width: 1100px) {
   .home-grid { grid-template-columns: 1fr 1fr; }
   .home-grid > .panel:first-child { grid-column: 1 / -1; }
@@ -563,7 +561,7 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
   .fx-mid .badge { font-size: 11px; padding: 2px 7px; gap: 5px; }
 }
 
-/* ---------------------------------------------------------------- the fan: bell, tray, toasts, My Halfspace */
+/* the fan: bell, tray, toasts, My Halfspace */
 .bell { position: relative; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: var(--turf-1); cursor: pointer; display: grid; place-items: center; }
 .bell[hidden] { display: none; }
 .bell svg { width: 18px; height: 18px; fill: none; stroke: var(--chalk); stroke-width: 1.8; stroke-linejoin: round; }
@@ -629,3 +627,4 @@ img.c { width: 22px; height: 22px; object-fit: contain; flex: none; vertical-ali
 .btn.danger { color: #F09A8C; border-color: color-mix(in srgb, var(--rt-poor) 60%, var(--line)); }
 .me-flash { color: var(--gold-ink); margin: 0 0 10px; }
 @media (max-width: 760px) { .me-grid { grid-template-columns: 1fr; } .facts li { grid-template-columns: 1fr auto; } .f-kind { display: none; } }
+.tbl.ptbl th:nth-child(2) { text-align: center; }

@@ -1,9 +1,4 @@
-"""Work with both MCP Python SDK lines.
-
-Microsoft Agent Framework currently depends on the 1.x SDK (FastMCP), while the
-2.x SDK renamed FastMCP to MCPServer. The server and tests import from here so
-the project runs on either.
-"""
+"""Work with both MCP Python SDK lines."""
 
 from __future__ import annotations
 
