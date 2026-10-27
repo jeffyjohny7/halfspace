@@ -5,7 +5,7 @@ Built for the Microsoft × Premier League *Inside the Game* hackathon.
 [![tests](https://github.com/jeffyjohny7/halfspace/actions/workflows/tests.yml/badge.svg)](https://github.com/jeffyjohny7/halfspace/actions/workflows/tests.yml)
 
 **Try it:** [jeffyjohny7.github.io/halfspace](https://jeffyjohny7.github.io/halfspace/) (the league hub and the
-match replay with the agents' checked graphics, no install). **Demo video:** VIDEO_LINK.
+match replay with the agents' checked graphics, no install). **Demo video:** https://youtu.be/t7KzkmruXcs.
 How to test everything, including the live agents: [For judges](#for-judges).
 
 | Home | Live match | Live ratings | My Halfspace |
