@@ -13,11 +13,12 @@ import math
 
 import pandas as pd
 
+from .availability import probable_xi, team_news
 from .metrics import TEAM_METRICS
 from .profiles import form, head_to_head, league_table
 from .scout import Scout
 from .store import Store
-from .util import clean, pct_rank
+from .util import clean, competition_name, pct_rank
 
 STYLE_METRICS = ["possession", "field_tilt", "ppda", "pressures_per_opp_pass", "long_pass_share", "xg", "opp_xg",
                  "sp_xg", "opp_sp_xg", "counter_xg", "opp_counter_xg", "late_xga_ratio", "fouls",
@@ -27,6 +28,13 @@ STYLE_METRICS = ["possession", "field_tilt", "ppda", "pressures_per_opp_pass", "
 # The opponent's left back defends against the beneficiary's right flank.
 FACES_FLANK = {"LB": "right", "LW": "right", "RB": "left", "RW": "left"}
 
+
+
+def ordinal(x: float) -> str:
+    """72 -> '72nd', 11 -> '11th', 1 -> '1st'."""
+    n = int(round(x))
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
 
 def _team_view(store: Store, scout: Scout, club_id: str, season: str) -> dict:
     tab = scout.team_table(season)
@@ -61,7 +69,7 @@ def _europe_before(store: Store, club_id: str, date: str | None, season: str) ->
     for r in eu.itertuples():
         e = dt.date.fromisoformat(r.date)
         if 0 < (d - e).days <= 4:
-            return {"competition": r.competition.replace("_", " ").title(), "date": r.date, "days_before": (d - e).days}
+            return {"competition": competition_name(r.competition), "date": r.date, "days_before": (d - e).days}
     return None
 
 
@@ -91,19 +99,6 @@ def _stakes(store: Store, season: str, home_id: str, away_id: str) -> dict:
     return out
 
 
-def _probable_xi(store: Store, club_id: str, season: str) -> dict:
-    lu = store.lineups
-    tm = store.table("team_match")
-    last = tm[(tm.team_id == club_id) & (tm.season == season) & (tm.stage == "league")].sort_values("date").tail(1)
-    if last.empty:
-        return {}
-    mid = last.match_id.iloc[0]
-    xi = lu[(lu.match_id == mid) & (lu.team_id == club_id) & (lu.started == True)]  # noqa: E712
-    return {"based_on_match": mid, "formation": last.formation.iloc[0],
-            "players": [{"player_id": r.player_id, "name": store.player_name(r.player_id), "slot": r.slot,
-                         "position": r.position} for r in xi.itertuples()]}
-
-
 def _key_players(scout: Scout, club_id: str, season: str, n: int = 3) -> list[dict]:
     out = []
     for metric in ("xt_p90", "npxg_p90"):
@@ -127,6 +122,7 @@ def build_edges(store: Store, scout: Scout, ben: str, opp: str, season: str, ben
     bv = ben_view["values"]
 
     def add(kind, title, text, strength, supports, predictions):
+        predictions = [x for x in predictions if x]
         edges.append({"edge_id": f"{ben}>{opp}:{kind}:{len(edges)}", "beneficiary_id": ben, "beneficiary": bname,
                       "opponent_id": opp, "opponent": oname, "kind": kind, "title": title, "explanation": text,
                       "strength": round(float(strength), 2), "supporting_findings": supports,
@@ -147,7 +143,7 @@ def build_edges(store: Store, scout: Scout, ben: str, opp: str, season: str, ben
                              f"({share:.0%} of their final-third entries).")
             strength = abs(f["z"]) * (0.5 + press_pct / 100) * boost
             text = (f"{bname} press hard ({bv.get('pressures_per_opp_pass', 0):.3f} pressures per opponent pass, "
-                    f"{press_pct:.0f}th percentile). {f['summary']}{extra}")
+                    f"{ordinal(press_pct)} percentile). {f['summary']}{extra}")
             preds = [_pred_player(scout, f, "dispossessed" if f["category"] == "loses_ball_under_pressure"
                                   else "turnovers", season, press_factor=_press_factor(ben_view))]
             add("press_vs_ball_loser", f"Press {f['player']}", text, strength, [f["finding_id"]], preds)
@@ -160,8 +156,8 @@ def build_edges(store: Store, scout: Scout, ben: str, opp: str, season: str, ben
         strength = max(abs(w["z"]) for w in weak) * (0.6 + sp_pct / 100) * (1.3 if ben_sp else 1.0)
         bits = "; ".join(w["summary"] for w in weak[:3])
         own = "; ".join(s["summary"] for s in ben_sp[:2]) or (
-            f"{bname} create {bv.get('sp_xg', 0):.2f} xG per match from set-piece deliveries ({sp_pct:.0f}th percentile).")
-        text = f"Set pieces: {own} Against them: {bits}"
+            f"{bname} create {bv.get('sp_xg', 0):.2f} xG per match from set-piece deliveries ({ordinal(sp_pct)} percentile).")
+        text = f"Set pieces: {own} {oname} at the back: {bits}"
         preds = [_pred_team(scout, store, ben, opp, "set_piece_xg_for", season, ben_view, opp_view)]
         for w in weak:
             if w["category"] == "weak_in_the_air" and w["player_id"]:
@@ -195,7 +191,7 @@ def build_edges(store: Store, scout: Scout, ben: str, opp: str, season: str, ben
     if line and (ctr_pct >= 55 or finisher or _f(ben_f, "direct_style")):
         strength = max(abs(x["z"]) for x in line) * (0.6 + ctr_pct / 100) * (1.3 if finisher else 1.0)
         text = " ".join(x["summary"] for x in line[:2]) + (
-            f" {bname} create {bv.get('counter_xg', 0):.2f} xG per match on the counter ({ctr_pct:.0f}th percentile).")
+            f" {bname} create {bv.get('counter_xg', 0):.2f} xG per match on the counter ({ordinal(ctr_pct)} percentile).")
         if finisher:
             text += " " + finisher[0]["summary"]
         add("in_behind", "Balls in behind", text, strength, [x["finding_id"] for x in line + finisher],
@@ -206,7 +202,8 @@ def build_edges(store: Store, scout: Scout, ben: str, opp: str, season: str, ben
     disc = _f(opp_f, "poor_discipline", "hothead")
     if disc and (ben_sp or sp_pct >= 55):
         strength = max(abs(x["z"]) for x in disc) * 0.8
-        text = " ".join(x["summary"] for x in disc[:2]) + " More fouls mean more set pieces for a dangerous delivery side."
+        text = (f"{oname}: " + " ".join(x["summary"] for x in disc[:2])
+                + f" More {oname} fouls mean more set pieces for {bname}, a dangerous delivery side.")
         preds = [_pred_team(scout, store, ben, opp, "fouls_by_opponent", season, ben_view, opp_view)]
         add("discipline", "Fouls into set pieces", text, strength, [x["finding_id"] for x in disc], preds)
 
@@ -293,16 +290,19 @@ def _pred_team(scout: Scout, store: Store, ben: str, opp: str, measure: str, sea
         mine = div1[div1.team_id == opp]
         exp, avg = float(mine.opp_late_xg.mean()), float(div1.opp_late_xg.mean())
     subject = opp if measure == "fouls_by_opponent" else ben
+    if not exp or not avg or exp < 1.15 * avg:
+        return None                     # not clearly above average: nothing worth checking live
     # Confirmed once the match is clearly above an average team, 60% of the way to the expectation.
-    gap = max(exp - avg, 0.0)
-    confirm = avg + 0.6 * gap if "xg" in measure else math.ceil(avg + max(1.5, 0.6 * gap))
-    confirm = round(float(confirm), 2)
+    gap = exp - avg
+    is_xg = "xg" in measure
+    confirm = round(float(avg + 0.6 * gap), 2) if is_xg else int(math.ceil(avg + max(1.5, 0.6 * gap)))
+    fmt = (lambda v: f"{v:.2f}") if is_xg else (lambda v: f"{v:.1f}")
     return {"prediction_id": f"{ben}>{opp}:{measure}", "subject_type": "team", "subject_id": subject,
             "subject": store.club_name(subject), "measure": measure, "label": label, "kind": "count_at_least",
             "beneficiary_id": ben, "opponent_id": opp,
             "expected_if_trait_holds": round(float(exp), 2), "expected_average": round(float(avg), 2),
             "confirm_at": confirm,
-            "text": f"{store.club_name(subject)} {label}: expect about {exp:.2f} vs league average {avg:.2f}; "
+            "text": f"{store.club_name(subject)} {label}: expect about {fmt(exp)} vs league average {fmt(avg)}; "
                     f"confirmed at {confirm}."}
 
 
@@ -317,6 +317,30 @@ def matchup_report(store: Store, scout: Scout, home_id: str, away_id: str, seaso
     for ben, opp in ((home_id, away_id), (away_id, home_id)):
         edges += build_edges(store, scout, ben, opp, season, views[ben], views[opp], finds[ben], finds[opp],
                              fixture, europe[opp])
+    # Team news: an edge built on a player who is injured or suspended is dropped,
+    # and a doubtful player's edge is kept but flagged.
+    news = {c: team_news(store, c, fixture.get("match_id")) for c in (home_id, away_id)}
+    out_ids = {x["player_id"] for n in news.values() for x in n.get("unavailable", [])}
+    doubt_ids = {x["player_id"] for n in news.values() for x in n.get("doubtful", [])}
+    kept, dropped = [], []
+    for e in edges:
+        pids = {p.get("subject_id") for p in e["predictions"] if p.get("subject_type") == "player"}
+        missing = pids & out_ids
+        if missing and (e["kind"] == "press_vs_ball_loser" or missing == pids and not
+                        any(p.get("subject_type") == "team" for p in e["predictions"])):
+            dropped.append({"edge_id": e["edge_id"], "title": e["title"],
+                            "reason": "player unavailable: " + ", ".join(store.player_name(x) for x in missing)})
+            continue
+        notes = []
+        if missing:
+            e["predictions"] = [p for p in e["predictions"] if p.get("subject_id") not in missing]
+            notes.append("Unavailable: " + ", ".join(store.player_name(x) for x in missing))
+        if pids & doubt_ids:
+            notes.append("Doubtful: " + ", ".join(store.player_name(x) for x in pids & doubt_ids))
+        if notes:
+            e["team_news_note"] = "; ".join(notes)
+        kept.append(e)
+    edges = kept
     edges.sort(key=lambda e: -e["strength"])
     predictions = [p for e in edges for p in e["predictions"]]
     seen, uniq = set(), []
@@ -351,8 +375,11 @@ def matchup_report(store: Store, scout: Scout, home_id: str, away_id: str, seaso
         "predictions_to_track": uniq,
         "key_players": {store.club_name(home_id): _key_players(scout, home_id, season),
                         store.club_name(away_id): _key_players(scout, away_id, season)},
-        "probable_lineups": {store.club_name(home_id): _probable_xi(store, home_id, season),
-                             store.club_name(away_id): _probable_xi(store, away_id, season)},
+        "team_news": {store.club_name(c): {k: news[c].get(k) for k in ("summary", "unavailable", "doubtful")}
+                      for c in (home_id, away_id)},
+        "edges_dropped_for_team_news": dropped,
+        "probable_lineups": {store.club_name(home_id): probable_xi(store, home_id, season),
+                             store.club_name(away_id): probable_xi(store, away_id, season)},
         "findings": {store.club_name(c): [{k: f[k] for k in ("finding_id", "category", "direction", "player",
                                                               "confidence", "summary", "evidence")}
                                            for f in finds[c]] for c in (home_id, away_id)},

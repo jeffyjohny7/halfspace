@@ -1,23 +1,31 @@
 {
-  "elapsed_s": 77.1,
+  "elapsed_s": 131.7,
   "matches": 1037,
-  "events": 2166704,
-  "champion": "Lowmarsh Harriers",
-  "champion_points": 79,
+  "events": 2154514,
+  "champion": "Dunvarrow Borough",
+  "champion_points": 91,
   "relegated": [
     "Ashbrook Vale Rovers",
-    "Cragmouth County",
-    "Highcrest Rangers"
+    "Calderwyn Town",
+    "Elderbridge City"
   ],
   "promoted": [
-    "Marrowgate Borough",
     "Fennholt FC",
-    "Pellmoor Borough"
+    "Grimsforth City",
+    "Vexley Cross Harriers"
   ],
-  "showcase": "Dunvarrow Borough vs Penmarrow Athletic (round 11, variant 8)",
+  "showcase": "Lowmarsh Harriers vs Oxmere County (round 11, variant 9)",
   "truths": {
     "2025-26": 99,
-    "2026-27": 65
+    "2026-27": 67
   },
-  "realism_checks_passed": "27/27"
+  "injuries": {
+    "2025-26": 1356,
+    "2026-27": 214
+  },
+  "suspensions": {
+    "2025-26": 243,
+    "2026-27": 23
+  },
+  "realism_checks_passed": "43/43"
 }

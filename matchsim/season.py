@@ -44,28 +44,67 @@ class Fixture:
     away_midweek_europe: bool = False
 
 
-def double_round_robin(club_ids: list[str], rng: random.Random) -> list[list[tuple[str, str]]]:
-    """Circle-method schedule. Returns rounds of (home, away) pairs."""
+def double_round_robin(club_ids: list[str], rng: random.Random,
+                       feature: tuple[str, str, int] | None = None) -> list[list[tuple[str, str]]]:
+    """Circle-method schedule. Returns rounds of (home, away) pairs.
+
+    The first half is a single round robin; the second half replays it in the same order with
+    venues swapped, so every club has exactly as many home games as away games. Venues in the
+    first half are chosen round by round to alternate: a club that was away last time is at
+    home next, and when both clubs were last at the same venue, the one with fewer home games
+    (or the longer run away) gets the home game. A club rarely plays three in a row at home or
+    away, and every club has 4-6 home games in the first ten rounds.
+
+    feature = (home_id, away_id, round_no) puts that fixture in that round with that venue
+    (the broadcaster's pick); the round holding the pairing swaps places with round_no.
+    """
     ids = list(club_ids)
     rng.shuffle(ids)
     if len(ids) % 2:
         ids.append("BYE")
     n = len(ids)
-    rounds = []
+    raw: list[list[tuple[str, str]]] = []
     arr = ids[:]
-    for r in range(n - 1):
-        pairs = []
-        for i in range(n // 2):
-            a, b = arr[i], arr[n - 1 - i]
-            if a == "BYE" or b == "BYE":
-                continue
-            # Alternate home/away to avoid long home or away runs.
-            pairs.append((a, b) if (r + i) % 2 == 0 else (b, a))
-        rounds.append(pairs)
+    for _r in range(n - 1):
+        raw.append([(arr[i], arr[n - 1 - i]) for i in range(n // 2)
+                    if "BYE" not in (arr[i], arr[n - 1 - i])])
         arr = [arr[0]] + [arr[-1]] + arr[1:-1]
-    second = [[(a, h) for (h, a) in rnd] for rnd in rounds]
-    rng.shuffle(second)
-    return rounds + second
+    forced: tuple[str, str] | None = None
+    if feature is not None and feature[0] in ids and feature[1] in ids:
+        fh, fa, fr = feature
+        k = next(j for j, rnd in enumerate(raw) if any({a, b} == {fh, fa} for a, b in rnd))
+        t = max(0, min(len(raw) - 1, fr - 1))
+        raw[k], raw[t] = raw[t], raw[k]
+        forced = (fh, fa)
+
+    last: dict[str, str] = {}
+    run: dict[str, int] = {c: 0 for c in ids}
+    homes: dict[str, int] = {c: 0 for c in ids}
+
+    def pull_home(c: str, r: int) -> float:
+        streak = run[c] if last.get(c) == "A" else (-run[c] if last.get(c) == "H" else 0)
+        return 2.0 * streak + (r / 2 - homes[c])
+
+    first: list[list[tuple[str, str]]] = []
+    for r, rnd in enumerate(raw):
+        pairs = []
+        for i, (a, b) in enumerate(rnd):
+            if forced is not None and {a, b} == set(forced):
+                h, aw = forced
+            else:
+                pa, pb = pull_home(a, r), pull_home(b, r)
+                if pa == pb:
+                    h, aw = (a, b) if (r + i) % 2 == 0 else (b, a)
+                else:
+                    h, aw = (a, b) if pa > pb else (b, a)
+            pairs.append((h, aw))
+            for c, v in ((h, "H"), (aw, "A")):
+                run[c] = run[c] + 1 if last.get(c) == v else 1
+                last[c] = v
+            homes[h] += 1
+        first.append(pairs)
+    second = [[(a, h) for (h, a) in rnd] for rnd in first]
+    return first + second
 
 
 def _next_weekday(d: dt.date, weekday: int) -> dt.date:
@@ -104,8 +143,8 @@ def league_calendar(n_rounds: int, start_year: int, rng: random.Random) -> list[
 
 
 EURO_MATCHDAYS = {
-    # competition -> list of (month, approx day). Champions League Tue/Wed,
-    # Europa League Thursday.
+    # competition -> list of (month, approx day). Continental Cup Tue/Wed,
+    # Continental Shield Thursday.
     "champions_league": [(9, 16), (9, 30), (10, 21), (11, 4), (11, 25), (12, 9), (1, 20), (1, 28),
                          (2, 17), (2, 24), (3, 10), (3, 17), (4, 7), (4, 14), (4, 28), (5, 5)],
     "europa_league": [(9, 24), (10, 1), (10, 22), (11, 5), (11, 26), (12, 10), (1, 22), (1, 29),
@@ -185,9 +224,10 @@ def apply_rest_and_rotation(fixtures: list[Fixture], euro: list[dict]) -> None:
 
 
 def league_fixtures(clubs: list[Club], season: str, competition: str, division: int,
-                    start_year: int, rng: random.Random, rounds_limit: int | None = None) -> list[Fixture]:
+                    start_year: int, rng: random.Random, rounds_limit: int | None = None,
+                    feature: tuple[str, str, int] | None = None) -> list[Fixture]:
     ids = [c.club_id for c in clubs]
-    rounds = double_round_robin(ids, rng)
+    rounds = double_round_robin(ids, rng, feature=feature)
     dates = league_calendar(len(rounds), start_year, rng)
     fixtures = []
     for r, (pairs, date) in enumerate(zip(rounds, dates), start=1):
@@ -212,10 +252,11 @@ def match_seed(base: int, match_id: str) -> int:
 
 
 def _run_job(job: tuple) -> tuple[Fixture, MatchResult]:
-    f, home, away, seed = job
+    f, home, away, seed, home_out, away_out, home_doubt, away_doubt = job
     eng = MatchEngine(f.match_id, home, away, seed, home_fatigue=f.home_fatigue,
                       away_fatigue=f.away_fatigue, home_rotation=f.home_rotation,
-                      away_rotation=f.away_rotation, neutral=f.neutral)
+                      away_rotation=f.away_rotation, neutral=f.neutral,
+                      home_out=home_out, away_out=away_out, home_doubtful=home_doubt, away_doubtful=away_doubt)
     return f, eng.simulate()
 
 
@@ -241,37 +282,65 @@ class EventWriter:
 class SeasonResults:
     matches: list[dict] = field(default_factory=list)
     lineups: list[dict] = field(default_factory=list)
+    team_news: list[dict] = field(default_factory=list)
+
+
+def europe_dates(euro_rows: list[dict]) -> dict[str, list[dt.date]]:
+    out: dict[str, list[dt.date]] = {}
+    for r in euro_rows:
+        out.setdefault(r["club_id"], []).append(r["date"])
+    return out
 
 
 def simulate_fixtures(fixtures: list[Fixture], clubs: dict[str, Club], base_seed: int,
                       writer: EventWriter | None, workers: int,
-                      results: SeasonResults, progress: str = "") -> list[tuple[Fixture, MatchResult]]:
-    jobs = [(f, clubs[f.home_id], clubs[f.away_id], match_seed(base_seed, f.match_id)) for f in fixtures]
+                      results: SeasonResults, progress: str = "", tracker=None,
+                      europe: dict[str, list[dt.date]] | None = None) -> list[tuple[Fixture, MatchResult]]:
+    """Simulate fixtures day by day. Matches on the same day run in parallel; between days
+    the tracker updates injuries and suspensions, so each team is picked from the players
+    actually available."""
     out: list[tuple[Fixture, MatchResult]] = []
     workers = workers or os.cpu_count() or 1
-    if workers > 1 and len(jobs) > 8:
-        ctx = get_context("spawn")
-        with ctx.Pool(workers) as pool:
-            iterator = pool.imap(_run_job, jobs, chunksize=4)
-            for i, (f, r) in enumerate(iterator, 1):
+    by_day: dict[dt.date, list[Fixture]] = {}
+    for f in sorted(fixtures, key=lambda f: (f.date, f.match_id)):
+        by_day.setdefault(f.date, []).append(f)
+    pool = get_context("spawn").Pool(workers) if workers > 1 and len(fixtures) > 8 else None
+    done = 0
+    try:
+        for day, group in by_day.items():
+            jobs = []
+            if tracker is not None:
+                tracker.training([clubs[c] for f in group for c in (f.home_id, f.away_id)], day, europe or {})
+            for f in group:
+                h, a = clubs[f.home_id], clubs[f.away_id]
+                if tracker is not None:
+                    ho, hd = tracker.selection(h, day)
+                    ao, ad = tracker.selection(a, day)
+                    results.team_news += tracker.news(h, day, f) + tracker.news(a, day, f)
+                else:
+                    ho = hd = ao = ad = set()
+                jobs.append((f, h, a, match_seed(base_seed, f.match_id), ho, ao, hd, ad))
+            done_group = pool.map(_run_job, jobs) if pool is not None and len(jobs) > 1 else [_run_job(j) for j in jobs]
+            for f, r in done_group:
                 _collect(f, r, writer, results)
+                if tracker is not None:
+                    tracker.after_match(f, r, day, clubs)
                 out.append((f, _strip(r)))
-                if progress and i % 50 == 0:
-                    print(f"  {progress}: {i}/{len(jobs)} matches", flush=True)
-    else:
-        for i, job in enumerate(jobs, 1):
-            f, r = _run_job(job)
-            _collect(f, r, writer, results)
-            out.append((f, _strip(r)))
-            if progress and i % 50 == 0:
-                print(f"  {progress}: {i}/{len(jobs)} matches", flush=True)
+                done += 1
+                if progress and done % 50 == 0:
+                    print(f"  {progress}: {done}/{len(fixtures)} matches", flush=True)
+    finally:
+        if pool is not None:
+            pool.close()
+            pool.join()
     return out
 
 
 def _strip(r: MatchResult) -> MatchResult:
     """Drop events after writing them, to save memory."""
     return MatchResult(r.match_id, r.home_id, r.away_id, r.home_goals, r.away_goals, [],
-                       r.lineups, r.home_formation, r.away_formation, r.added_time, r.shootout)
+                       r.lineups, r.home_formation, r.away_formation, r.added_time, r.shootout,
+                       injuries=r.injuries)
 
 
 def _collect(f: Fixture, r: MatchResult, writer: EventWriter | None, results: SeasonResults) -> None:
@@ -328,7 +397,7 @@ def standings(match_rows: list[dict], club_ids: list[str], names: dict[str, str]
 
 def run_playoffs(table: list[dict], clubs: dict[str, Club], season: str, start_year: int,
                  base_seed: int, writer: EventWriter | None, results: SeasonResults,
-                 places: tuple[int, int]) -> tuple[str, list[dict]]:
+                 places: tuple[int, int], tracker=None) -> tuple[str, list[dict]]:
     """Two-legged semi-finals (3 v 6, 4 v 5) and a one-off neutral final."""
     lo, hi = places
     seeds = [row["club_id"] for row in table[lo - 1:hi]]
@@ -344,8 +413,8 @@ def run_playoffs(table: list[dict], clubs: dict[str, Club], season: str, start_y
                        "playoff_semi_leg1", 0, d1, low, high)
         leg2 = Fixture(f"{sid}-D2-PO-SF{i}-L2", season, "Crown League Two Playoffs", 2,
                        "playoff_semi_leg2", 0, d2, high, low, home_days_rest=4, away_days_rest=4)
-        (_, r1), = simulate_fixtures([leg1], clubs, base_seed, writer, 1, results)
-        (_, r2), = simulate_fixtures([leg2], clubs, base_seed, writer, 1, results)
+        (_, r1), = simulate_fixtures([leg1], clubs, base_seed, writer, 1, results, tracker=tracker)
+        (_, r2), = simulate_fixtures([leg2], clubs, base_seed, writer, 1, results, tracker=tracker)
         agg_high = r1.away_goals + r2.home_goals
         agg_low = r1.home_goals + r2.away_goals
         if agg_high == agg_low:
@@ -361,7 +430,7 @@ def run_playoffs(table: list[dict], clubs: dict[str, Club], season: str, start_y
     final = Fixture(f"{sid}-D2-PO-F", season, "Crown League Two Playoffs", 2, "playoff_final", 0,
                     final_date, winners[0], winners[1], neutral=True, home_days_rest=10,
                     away_days_rest=10)
-    (_, rf), = simulate_fixtures([final], clubs, base_seed, writer, 1, results)
+    (_, rf), = simulate_fixtures([final], clubs, base_seed, writer, 1, results, tracker=tracker)
     if rf.home_goals == rf.away_goals:
         so = penalty_shootout(clubs[winners[0]], clubs[winners[1]], base_seed + 99)
         champion = winners[0] if so["winner"] == "home" else winners[1]

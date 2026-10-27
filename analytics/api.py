@@ -9,14 +9,14 @@ from __future__ import annotations
 import difflib
 import threading
 
-from . import profiles
+from . import availability, profiles
 from .live import LiveMatch, _event_rows
 from .matchup import matchup_report
 from .metrics import PLAYER_METRICS, TEAM_METRICS
 from .profiles import POSITION_KEY_METRICS
 from .scout import PLAYER_CHECKS, TEAM_CHECKS, Scout
 from .store import Store
-from .util import clean
+from .util import clean, competition_name, public_rules
 
 
 class NotFound(ValueError):
@@ -62,10 +62,16 @@ class Analyst:
         raise NotFound(f"No player '{player}'." + (f" Did you mean: {', '.join(close)}?" if close else ""))
 
     def season(self, season: str | None) -> str:
-        if season in (None, "", "current"):
+        """Accepts 'current', 'previous'/'last', '2026-27', '2026/27', '2026-2027', '26-27', '2026'."""
+        s = (season or "").strip().lower().replace("/", "-").replace(" season", "")
+        if s in ("", "current", "this", "now", "latest", "none", "null"):
             return self.store.current_season
-        if season == "previous":
+        if s in ("previous", "last", "prev"):
             return self.store.previous_season
+        for full in self.store.seasons:
+            a, b = full.split("-")
+            if s in (full, f"{a}-20{b}", f"{a[2:]}-{b}", a):
+                return full
         if season not in self.store.seasons:
             raise NotFound(f"Unknown season {season}. Seasons: {', '.join(self.store.seasons)}")
         return season
@@ -81,11 +87,11 @@ class Analyst:
                     "formation": f"{m['old_formation']} -> {m['new_formation']}"} for m in off["manager_changes"]]
         return clean({
             "leagues": s.league["leagues"], "seasons": s.seasons, "current_season": cur,
-            "rounds_played": s.league["current_round_completed"], "rules": s.league["rules"],
+            "rounds_played": s.league["current_round_completed"], "rules": public_rules(s.league["rules"]),
             "top_of_table": table[:6], "bottom_of_table": table[-3:],
             "last_summer": {"relegated": [r["club"] for r in off["relegated"]],
                             "promoted": [f"{r['club']} ({r['route']})" for r in off["promoted"]],
-                            "european_places": [f"{r['club']} ({r['competition'].replace('_', ' ')})"
+                            "european_places": [f"{r['club']} ({competition_name(r['competition'])})"
                                                 for r in off["european_places"]],
                             "manager_changes": changes, "transfers": len(off["transfers"])},
             "showcase_fixture": {"match_id": meta["match_id"], "home": meta["home"], "away": meta["away"],
@@ -125,7 +131,52 @@ class Analyst:
         return out
 
     def player_profile(self, player: str, season: str | None = None) -> dict:
-        return profiles.player_profile(self.store, self.scout.player_cmp, self.player_id(player), self.season(season))
+        pid = self.player_id(player)
+        out = profiles.player_profile(self.store, self.scout.player_cmp, pid, self.season(season))
+        club = self.store.player_club(pid, self.store.current_season)
+        out["availability"] = availability.player_status(self.store, pid, club)
+        inj = availability.injuries(self.store, player_id=pid, season="all")
+        out["injury_record"] = {"injuries": inj.get("count", 0), "by_type": inj.get("by_type", {}),
+                                "latest": (inj.get("injuries") or [None])[0]}
+        out["match_ratings"] = self.rating_summary(pid)
+        return out
+
+    def rating_summary(self, pid: str) -> dict:
+        """A player's match ratings per season: average, best, last five (rating.py explains the scale)."""
+        pr = self.store.player_ratings
+        me = pr[pr.player_id.astype(str) == pid]
+        if me.empty:
+            return {}
+        m = self.store.matches.set_index("match_id")
+        out = {}
+        for season, g in me.groupby("season"):
+            g = g.join(m[["date", "home_id", "away_id"]], on="match_id").sort_values("date")
+            opp = [self.store.club_name(h if t != h else a) for t, h, a in zip(g.team_id, g.home_id, g.away_id)]
+            rows = [{"date": d, "opponent": o, "rating": round(float(r), 1)} for d, o, r in zip(g.date, opp, g.rating)]
+            best = max(rows, key=lambda x: x["rating"])
+            out[season] = {"matches": len(rows), "average": round(float(g.rating.mean()), 2), "best": best,
+                           "last_5": rows[-5:]}
+        return out
+
+    # ------------------------------------------------------------------ team news, injuries, line-ups
+    def team_news(self, club: str, match_id: str | None = None) -> dict:
+        return availability.team_news(self.store, self.club_id(club), match_id)
+
+    def injuries(self, club: str | None = None, player: str | None = None, season: str | None = None) -> dict:
+        season = "all" if season == "all" else self.season(season)
+        out = availability.injuries(self.store, self.club_id(club) if club else None,
+                                    self.player_id(player) if player else None, season)
+        if club:
+            out["suspensions"] = availability.suspensions(self.store, self.club_id(club),
+                                                          None if season == "all" else season)
+        return out
+
+    def match_lineup(self, club: str, match_id: str = "last", season: str | None = None) -> dict:
+        out = availability.match_lineup(self.store, self.club_id(club), match_id or "last",
+                                        self.season(season) if season else None)
+        if "error" in out:
+            raise NotFound(out["error"])
+        return out
 
     def player_event_map(self, player: str, season: str | None = None,
                          kinds: tuple[str, ...] = ("dispossessed", "turnover")) -> dict:
@@ -191,6 +242,9 @@ class Analyst:
     def live_player(self, player: str, clock_s: float) -> dict:
         return self.live.player(self.player_id(player), clock_s)
 
+    def live_ratings(self, clock_s: float) -> dict:
+        return self.live.ratings(clock_s)
+
     # ------------------------------------------------------------------ evidence
     def get_events(self, match_id: str, event_ids: list[int], clock_s: float | None = None) -> list[dict]:
         if match_id == self.store.showcase_meta["match_id"]:
@@ -220,6 +274,9 @@ class Analyst:
                       "season's league data.",
                 "PPDA": "Opponent passes per defensive action in their own 60% of the pitch. Lower = more pressing.",
                 "field tilt": "Share of final-third passes. Who is camped in whose half.",
+                "match rating": "0-10 player rating. Everyone starts at 6.0 and each action adds or removes a fixed "
+                                "amount: goal +1.0, assist +0.6, key pass +0.12, misplaced pass -0.035, tackle +0.1, "
+                                "save +0.2 plus the shot's xG... An ordinary game is 6.5-7, a standout one 8.5+.",
                 "pass difficulty": "Chance an average passer would fail that pass in that context (0-1).",
                 "z": "Robust z-score vs peers (same position and division): how unusual the player or team is.",
                 "chaos index": "0-100. How end-to-end the last 10 minutes were vs every 10-minute spell last season.",
@@ -251,13 +308,24 @@ def compact_matchup(rep: dict) -> dict:
         "style_comparison": style,
         "edges": [{"edge_id": e["edge_id"], "beneficiary": e["beneficiary"], "title": e["title"],
                    "strength": e["strength"], "explanation": e["explanation"],
-                   "supporting_findings": e["supporting_findings"]} for e in rep["edges"]],
+                   "supporting_findings": e["supporting_findings"],
+                   **({"team_news_note": e["team_news_note"]} if e.get("team_news_note") else {})}
+                  for e in rep["edges"]],
+        "team_news": {club: {"summary": n.get("summary"),
+                             "out": [f"{x['player']} ({x['position']}, {x['status']}: {x['reason']})"
+                                     for x in n.get("unavailable") or []],
+                             "doubtful": [f"{x['player']} ({x['position']}: {x['reason']})"
+                                          for x in n.get("doubtful") or []]}
+                      for club, n in rep.get("team_news", {}).items()},
+        "edges_dropped_for_team_news": rep.get("edges_dropped_for_team_news", []),
         "predictions_to_track": [{"prediction_id": p["prediction_id"], "text": p["text"]}
                                  for p in rep["predictions_to_track"]],
         "key_players": {club: sorted({f"{k['name']} ({k['position']})" for k in ks})
                         for club, ks in rep["key_players"].items()},
         "probable_lineups": {club: {"formation": x.get("formation"),
-                                    "players": [f"{p['name']} ({p['slot']})" for p in x.get("players", [])]}
+                                    "players": [f"{p['name']} ({p['slot']}{', doubtful' if p.get('doubtful') else ''})"
+                                                for p in x.get("players", [])],
+                                    "changes": [f"{c['in']} for {c['out']} ({c['reason']})" for c in x.get("changes", [])]}
                              for club, x in rep["probable_lineups"].items()},
         "findings": {club: [f"[{f['confidence']}] {f['summary']}" for f in fs] for club, fs in rep["findings"].items()},
         "note": "Compact view. Use scout_findings / goals_breakdown / player_profile for evidence and detail.",

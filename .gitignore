@@ -1,12 +1,24 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
 build/
 dist/
 wheels/
 *.egg-info
-
-# Virtual environments
 .venv
+.pytest_cache/
+
+# Secrets: never commit these (.env.example shows the variables)
+.env
+.env.*
+!.env.example
+
+# Generated league data: rebuild with scripts/generate.py and scripts/build_stats.py.
+# The reports (realism check, scouting scored against the answer key) stay in the repo.
 data/*
 !data/reports/
+
+# Local leftovers
+_backup_v3/
+web_assets_dl/
+*.zip

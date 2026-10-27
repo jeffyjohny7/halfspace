@@ -4,64 +4,64 @@ Stats engine only, no LLM. Findings at **medium** confidence or above, top divis
 
 ## 2025-26 (full season)
 
-- Planted traits recovered: **40/60** (recall 67%)
-- Precision vs answer key (lower bound): **38%** (40/104 catalogue findings)
-- Precision vs hidden ratings: **70%** of 148 checkable findings point at a rating in the worst/best 20% of peers (planted or natural)
+- Planted traits recovered: **39/60** (recall 65%)
+- Precision vs answer key (lower bound): **32%** (39/122 catalogue findings)
+- Precision vs hidden ratings: **60%** of 162 checkable findings point at a rating in the worst/best 20% of peers (planted or natural)
 - Natural (unplanted) extremes also found: 0/0
 
 | Confidence | Findings | Planted match | Backed by hidden ratings |
 |---|---|---|---|
-| high | 51 | 70% | 80% |
-| medium | 97 | 24% | 65% |
+| high | 46 | 57% | 80% |
+| medium | 116 | 19% | 53% |
 
 | Trait | Recovered |
 |---|---|
 | clinical_finisher | 1/4 |
-| elite_crosser | 2/3 |
+| elite_crosser | 1/3 |
 | error_prone_passer | 3/3 |
-| fortress_home | 2/7 |
+| fortress_home | 1/7 |
 | goalkeeper_weak_on_crosses | 4/4 |
 | high_line_exposed | 0/1 |
 | hothead | 3/4 |
-| late_fade | 1/3 |
+| late_fade | 0/3 |
 | left_flank_focus | 6/6 |
 | loses_ball_under_pressure | 6/6 |
 | poor_discipline | 2/2 |
 | press_resistant_playmaker | 0/2 |
-| right_flank_focus | 2/3 |
-| set_piece_attack_strong | 2/5 |
+| right_flank_focus | 3/3 |
+| set_piece_attack_strong | 3/5 |
 | set_piece_defense_weak | 1/2 |
 | weak_in_the_air | 5/5 |
 
 ## 2026-27 (blending last season)
 
-- Planted traits recovered: **32/62** (recall 52%)
-- Precision vs answer key (lower bound): **40%** (33/83 catalogue findings)
-- Precision vs hidden ratings: **71%** of 123 checkable findings point at a rating in the worst/best 20% of peers (planted or natural)
-- Natural (unplanted) extremes also found: 1/3
+- Planted traits recovered: **39/60** (recall 65%)
+- Precision vs answer key (lower bound): **45%** (41/92 catalogue findings)
+- Precision vs hidden ratings: **73%** of 124 checkable findings point at a rating in the worst/best 20% of peers (planted or natural)
+- Natural (unplanted) extremes also found: 2/7
 
 | Confidence | Findings | Planted match | Backed by hidden ratings |
 |---|---|---|---|
-| high | 45 | 70% | 84% |
-| medium | 78 | 20% | 63% |
+| high | 43 | 78% | 93% |
+| medium | 81 | 23% | 62% |
 
 | Trait | Recovered |
 |---|---|
 | clinical_finisher | 1/4 |
-| elite_crosser | 1/5 |
-| error_prone_passer | 2/3 |
-| fortress_home | 1/7 |
-| goalkeeper_weak_on_crosses | 3/4 |
-| high_line_exposed | 1/1 |
-| hothead | 3/3 |
-| late_fade | 0/3 |
-| left_flank_focus | 2/6 |
-| loses_ball_under_pressure | 6/6 |
-| poor_discipline | 1/1 |
-| press_resistant_playmaker | 0/2 |
-| right_flank_focus | 2/3 |
-| set_piece_attack_strong | 1/5 |
-| set_piece_defense_weak | 1/2 |
-| style_change_directness | 1/1 |
-| style_change_press_intensity | 2/2 |
-| weak_in_the_air | 4/4 |
+| elite_crosser | 1/4 |
+| error_prone_passer | 3/3 |
+| fortress_home | 0/5 |
+| goalkeeper_weak_on_crosses | 2/3 |
+| high_line_exposed | 0/1 |
+| hothead | 1/2 |
+| late_fade | 0/2 |
+| left_flank_focus | 7/7 |
+| loses_ball_under_pressure | 7/7 |
+| poor_discipline | 2/2 |
+| press_resistant_playmaker | 0/1 |
+| right_flank_focus | 2/2 |
+| set_piece_attack_strong | 3/5 |
+| set_piece_defense_weak | 0/2 |
+| style_change_directness | 2/2 |
+| style_change_press_intensity | 3/3 |
+| weak_in_the_air | 5/5 |

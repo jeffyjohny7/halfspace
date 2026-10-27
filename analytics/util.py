@@ -9,6 +9,24 @@ import numpy as np
 import pandas as pd
 
 
+# The league's two European competitions are fictional too (internal ids kept from generation).
+COMPETITION_NAMES = {"champions_league": "Continental Cup", "europa_league": "Continental Shield"}
+
+
+def competition_name(cid: str) -> str:
+    return COMPETITION_NAMES.get(cid, str(cid).replace("_", " ").title())
+
+
+def public_rules(rules: dict) -> dict:
+    """League rules with the European places under the fictional competition names."""
+    out = {k: v for k, v in rules.items() if k not in ("champions_league_spots", "europa_league_spots")}
+    if "champions_league_spots" in rules:
+        out["continental_cup_spots"] = rules["champions_league_spots"]
+    if "europa_league_spots" in rules:
+        out["continental_shield_spots"] = rules["europa_league_spots"]
+    return out
+
+
 def clean(obj: Any, nd: int = 3) -> Any:
     """Recursively convert numpy/pandas values to plain JSON-safe Python, rounding floats."""
     if isinstance(obj, dict):

@@ -111,6 +111,24 @@ class Store:
     def offseason(self) -> dict:
         return json.loads(self.public_path("offseason.json").read_text(encoding="utf-8"))
 
+    def _optional_csv(self, name: str) -> pd.DataFrame:
+        path = self.public_path(name)
+        if not path.exists() or path.stat().st_size == 0:
+            return pd.DataFrame()
+        return pd.read_csv(path)
+
+    @cached_property
+    def injuries(self) -> pd.DataFrame:
+        return self._optional_csv("injuries.csv")
+
+    @cached_property
+    def suspensions(self) -> pd.DataFrame:
+        return self._optional_csv("suspensions.csv")
+
+    @cached_property
+    def team_news(self) -> pd.DataFrame:
+        return self._optional_csv("team_news.csv")
+
     @cached_property
     def showcase_meta(self) -> dict:
         return json.loads(self.public_path("showcase", "showcase_match.json").read_text(encoding="utf-8"))
@@ -137,6 +155,20 @@ class Store:
         if not path.exists():
             raise FileNotFoundError(f"Missing derived table {name}. Run scripts/build_stats.py first.")
         return pd.read_parquet(path)
+
+    @cached_property
+    def player_ratings(self) -> pd.DataFrame:
+        """Match rating of every player in every match (derived/player_ratings.parquet, built on first use)."""
+        path = self.derived_path("player_ratings.parquet")
+        if path.exists():
+            return pd.read_parquet(path)
+        from .rating import season_ratings
+        df = season_ratings(self)
+        try:
+            df.to_parquet(path, index=False)
+        except OSError:
+            pass
+        return df
 
     @cached_property
     def xt_grid(self) -> dict:

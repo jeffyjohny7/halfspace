@@ -22,7 +22,12 @@ import random
 from dataclasses import dataclass, field
 
 from .config import BOX_HALF_WIDTH, BOX_X, GOAL_Y, PITCH_LENGTH as L, PITCH_WIDTH as W
+from .injuries import proneness
 from .universe import FORMATIONS, Club, Player, best_xi, RELATED_POSITIONS
+
+MAX_SUBS = 5
+NON_CONTACT_INJURY_RATE = 1.2e-6     # per player per second of play, before tiredness and proneness
+CONTACT_INJURY_AFTER_FOUL = 0.012    # chance the fouled player is hurt (more if the foul was booked)
 
 HALF = 45 * 60
 
@@ -38,6 +43,36 @@ def _sig(v: float) -> float:
 def _logit(p: float) -> float:
     p = min(0.999, max(0.001, p))
     return math.log(p / (1.0 - p))
+
+
+# Role in possession: (how far the player follows the ball forward, furthest x he goes,
+# how often he offers himself for a pass). Calibrated so passes per 90 by position match
+# real top-flight football: centre-backs and midfielders on the ball most, strikers least.
+REF_BALL_X = 40.0
+ROLES = {
+    "GK": (0.18, 22.0, 1.1),
+    "CB": (0.62, 66.0, 1.9),
+    "RB": (0.95, 88.0, 1.15), "LB": (0.95, 88.0, 1.15),
+    "DM": (0.72, 80.0, 1.1),
+    "CM": (0.78, 92.0, 0.9),
+    "AM": (0.62, 95.0, 0.8),
+    "RW": (0.55, 97.0, 0.65), "LW": (0.55, 97.0, 0.65),
+    "ST": (0.45, 97.0, 0.42),
+}
+
+
+# Shot conversion and shot choice (calibrated so a league's top scorer lands around 25-35 goals).
+FIN_SLOPE = 0.006      # logit per finishing point, around xG
+FIN_ELITE = 0.006      # extra per point above 88
+GK_SLOPE = 0.02        # logit per shot-stopping point
+SHOT_BASE = 0.27       # with the terms below centred on the average shooter, goals = xG league-wide
+BOX_SHOT = 10.5        # base shot-choice weight inside the box (was 5.4)
+SHOT_FIN_BOX = 0.08    # shot-choice weight per finishing point inside the box (was 0.55)
+SHOT_FIN_OUT = 0.05    # ...and outside it (was 0.1)
+WIDE_SHOT = 1.0        # wide forwards and No. 10s cutting inside the area edge (was 0.6)
+POS_SHOT = {"ST": 0.85, "RW": 1.4, "LW": 1.4, "AM": 1.25}
+HEADER_PEN = -0.35     # logit, on every header
+WIDE_BOX_SHOT = 0.6    # ...and shooting from wide in the box instead of crossing (others 0.35)
 
 
 def _clamp(v: float, lo: float, hi: float) -> float:
@@ -86,6 +121,9 @@ class Side:
     reds: int = 0
     yellows: dict = field(default_factory=dict)
     lineup: dict = field(default_factory=dict)
+    subs_used: int = 0
+    injuries: list = field(default_factory=list)
+    missing: list = field(default_factory=list)      # unavailable + doubtful players left out
 
     def outfield(self) -> list[Slot]:
         return [s for s in self.slots if s.player.position != "GK"]
@@ -110,18 +148,23 @@ class MatchResult:
     away_formation: str
     added_time: tuple[int, int]
     shootout: dict | None = None
+    injuries: list = field(default_factory=list)
 
 
 class MatchEngine:
     def __init__(self, match_id: str, home: Club, away: Club, seed: int,
                  home_fatigue: float = 0.0, away_fatigue: float = 0.0,
                  home_rotation: int = 0, away_rotation: int = 0,
-                 neutral: bool = False):
+                 neutral: bool = False, home_out: set | None = None, away_out: set | None = None,
+                 home_doubtful: set | None = None, away_doubtful: set | None = None):
+        """home_out / away_out: injured or suspended players; *_doubtful: late fitness tests
+        (each one passes with probability 0.5)."""
         self.rng = random.Random(seed)
         self.match_id = match_id
         self.neutral = neutral
-        self.home = self._make_side(home, True, home_rotation, home_fatigue)
-        self.away = self._make_side(away, False, away_rotation, away_fatigue)
+        self.home = self._make_side(home, True, home_rotation, home_fatigue, home_out or set(), home_doubtful or set())
+        self.away = self._make_side(away, False, away_rotation, away_fatigue, away_out or set(), away_doubtful or set())
+        self._last_injury_check = 0.0
         self.events: list[dict] = []
         self.eid = 0
         self.poss_id = 0
@@ -133,30 +176,38 @@ class MatchEngine:
         self.stoppages = 0
 
     # ------------------------------------------------------------------ setup
-    def _make_side(self, club: Club, is_home: bool, rotation: int, fatigue: float) -> Side:
+    def _make_side(self, club: Club, is_home: bool, rotation: int, fatigue: float,
+                   out: set, doubtful: set) -> Side:
         rng = self.rng
-        xi = best_xi(club)
+        missing = set(out)
+        for pid in sorted(doubtful):
+            if rng.random() < 0.5:             # failed the late fitness test
+                missing.add(pid)
+        first_choice = best_xi(club, exclude=missing)
+        xi = first_choice
         rested: list[str] = []
         if rotation > 0:
             outfield = [p for _s, p in xi if p.position != "GK"]
             # Rest the most tired-prone players (low stamina) with some randomness.
             outfield.sort(key=lambda p: p.attrs["stamina"] + rng.gauss(0, 8))
             rested = [p.player_id for p in outfield[:rotation]]
-            xi = best_xi(club, exclude=set(rested))
+            xi = best_xi(club, exclude=missing | set(rested))
         coords = {slot: (x, y) for slot, _pos, x, y in FORMATIONS[club.formation]}
         slots = []
+        first_ids = {q.player_id for _s, q in first_choice}
         for slot, p in xi:
-            fresh = rotation > 0 and p.player_id not in {q.player_id for _s, q in best_xi(club)}
+            fresh = rotation > 0 and p.player_id not in first_ids
             bx, by = coords[slot]
             slots.append(Slot(slot, p, bx, by, 0.0, 0.0 if fresh else fatigue))
         used = {s.player.player_id for s in slots}
-        bench_pool = sorted([p for p in club.squad if p.player_id not in used],
+        bench_pool = sorted([p for p in club.squad if p.player_id not in used and p.player_id not in missing],
                             key=lambda p: -p.overall)
         bench_gk = [p for p in bench_pool if p.position == "GK"][:1]
         bench = bench_gk + [p for p in bench_pool if p.position != "GK"][:8]
         n_subs = rng.choices([3, 4, 5], weights=[3, 4, 3])[0]
         plan = sorted(rng.uniform(55, 88) for _ in range(n_subs))
         side = Side(club, is_home, club.style(), slots, bench, plan, rested)
+        side.missing = sorted(missing)
         for s in slots:
             side.lineup[s.player.player_id] = {
                 "player_id": s.player.player_id, "slot": s.slot, "position": s.player.position,
@@ -263,29 +314,42 @@ class MatchEngine:
     def _aggr(self, side: Side) -> float:
         """Game-state attacking intent: >0 chasing the game, <0 protecting a lead."""
         diff = side.goals - self.other(side).goals
-        if diff == 0:
-            return 0.0
         mins = self.match_seconds() / 60.0
+        if diff == 0:
+            # Level late on: both sides go for the win, the home side more.
+            late = _clamp((mins - 65.0) / 25.0, 0.0, 1.0)
+            return (0.25 if side.is_home and not self.neutral else 0.17) * late
         w = min(1.0, (mins / 90.0)) ** 1.5
-        return _clamp(-0.3 * diff * w, -0.5, 0.5)
+        return _clamp(-0.15 * diff * w, -0.5, 0.5)
 
     def _side_bonus(self, side: Side) -> float:
         bonus = 0.0
         if not self.neutral:
             boost = self.home.style.get("home_boost", 0.5) - 0.5
             if side.is_home:
-                bonus += 0.02 + 0.4 * boost
+                bonus += 0.045 + 0.3 * boost
             else:
-                bonus -= 0.03 + 0.25 * boost
+                bonus -= 0.045 + 0.2 * boost
         bonus -= 0.3 * side.reds
         bonus += 0.12 * self.other(side).reds
         return bonus
 
     def _pos_att(self, side: Side, s: Slot, bx_ball: float, by_ball: float) -> tuple[float, float]:
-        shift = (bx_ball - 52.5) * 0.45 + (side.style.get("line_height", 0.5) - 0.5) * 10
-        if s.player.position == "GK":
-            return _clamp(5 + max(0.0, shift * 0.25), 1, 25), 34.0
-        return _clamp(s.bx + shift, 2, 103), _clamp(s.by + (by_ball - 34) * 0.25, 1, 67)
+        """Where a player stands when his team has the ball.
+
+        Each role follows the ball by a different amount: full-backs push on, centre-backs
+        hold the halfway line, strikers stay on the last line, so the team keeps a
+        realistic 35-45 m block instead of everyone sliding together."""
+        pos = s.player.position
+        follow, cap, _avail = ROLES.get(pos, ROLES["CM"])
+        lh = (side.style.get("line_height", 0.5) - 0.5) * 10
+        x = s.bx + follow * (bx_ball - REF_BALL_X) + (lh if pos in ("GK", "CB", "RB", "LB", "DM") else 0.5 * lh)
+        if pos == "GK":
+            return _clamp(x, 1, cap), 34.0
+        by = s.by
+        if pos in ("RW", "LW") and bx_ball > 66:
+            by += (GOAL_Y - by) * 0.35          # wide forwards come inside; full-backs give the width
+        return _clamp(x, 2, cap), _clamp(by + (by_ball - 34) * 0.25, 1, 67)
 
     def _pos_def(self, dfn: Side, s: Slot, x: float, y: float) -> tuple[float, float]:
         """Defender position, returned in the attacking frame.
@@ -314,7 +378,8 @@ class MatchEngine:
             px, py = self._pos_att(att, s, ball_x, ball_y)
             d2 = (px - tx) ** 2 + (py - ty) ** 2
             cands.append(s)
-            weights.append(math.exp(-d2 / 288.0) + 1e-4)
+            avail = ROLES.get(s.player.position, ROLES["CM"])[2]
+            weights.append(avail * math.exp(-d2 / 288.0) + 1e-4)
         return rng.choices(cands, weights=weights)[0]
 
     def _pick_defender(self, dfn: Side, x: float, y: float, allow_gk: bool = False) -> Slot:
@@ -390,7 +455,8 @@ class MatchEngine:
         return MatchResult(self.match_id, self.home.club.club_id, self.away.club.club_id,
                            self.home.goals, self.away.goals, self.events, lineups,
                            self.home.club.formation, self.away.club.formation,
-                           (self.added[0], self.added[1]))
+                           (self.added[0], self.added[1]),
+                           injuries=self.home.injuries + self.away.injuries)
 
     def _decide_added(self) -> None:
         evs = [e for e in self.events if e["period"] == self.period]
@@ -398,7 +464,9 @@ class MatchEngine:
         subs = sum(1 for e in evs if e["type"] == "substitution")
         cards = sum(1 for e in evs if e["type"] == "card")
         pens = sum(1 for e in evs if e["set_piece"] == "penalty")
-        extra = 0.8 * goals + 0.45 * subs + 0.35 * cards + 1.0 * pens + self.rng.uniform(0.3, 2.4)
+        injuries = sum(1 for e in evs if e["type"] == "injury")
+        extra = (0.8 * goals + 0.45 * subs + 0.35 * cards + 1.0 * pens + 1.0 * injuries
+                 + self.rng.uniform(0.3, 2.4))
         if self.period == 1:
             self.added[0] = int(min(6, 1 + extra))
         else:
@@ -412,34 +480,82 @@ class MatchEngine:
     def _maybe_subs(self) -> None:
         mins = self.match_seconds() / 60.0
         for side in (self.home, self.away):
-            while side.sub_plan and mins >= side.sub_plan[0] and side.bench:
+            while side.sub_plan and mins >= side.sub_plan[0] and side.bench and side.subs_used < MAX_SUBS:
                 side.sub_plan.pop(0)
                 self._substitute(side)
+        self._maybe_injury()
 
-    def _substitute(self, side: Side) -> None:
+    # ------------------------------------------------------------------ injuries
+    def _maybe_injury(self) -> None:
+        """Muscle injuries: a small hazard per player, higher when tired or injury-prone."""
+        now = self._elapsed()
+        dt_s = now - self._last_injury_check
+        self._last_injury_check = now
+        if dt_s <= 0:
+            return
+        for side in (self.home, self.away):
+            for s in list(side.slots):
+                hurt = {i["player_id"] for i in side.injuries}
+                if s.player.player_id in hurt:
+                    continue
+                rate = NON_CONTACT_INJURY_RATE * (1 + 2.5 * self._fatigue(side, s)) * proneness(s.player)
+                if self.rng.random() < rate * dt_s:
+                    self._injure(side, s.player, "non_contact", 52.5, 34.0, side)
+
+    def _injure(self, side: Side, player: Player, cause: str, x: float, y: float, frame: Side) -> None:
+        if any(i["player_id"] == player.player_id for i in side.injuries):
+            return
+        rng = self.rng
+        can_sub = bool(side.bench) and side.subs_used < MAX_SUBS
+        if player.position == "GK":
+            can_sub = can_sub and any(p.position == "GK" for p in side.bench)
+        outcome = "off" if can_sub and rng.random() < 0.72 else "played_on"
+        self._emit(side, "injury", player, x, y, frame, outcome=outcome)
+        side.injuries.append({"player_id": player.player_id, "team_id": side.club.club_id, "cause": cause,
+                              "minute": int(self.match_seconds() // 60), "outcome": outcome})
+        self._tick(rng.uniform(40, 110))      # treatment on the pitch
+        self.stoppages += 1
+        if outcome == "off":
+            if side.sub_plan:
+                side.sub_plan.pop()          # the forced change uses up one of the planned ones
+            self._substitute(side, forced=player, reason="injury")
+        else:
+            for s in side.slots:
+                if s.player is player:
+                    s.pre_fatigue += 0.12     # carrying a knock
+
+    def _substitute(self, side: Side, forced: Player | None = None, reason: str = "off") -> None:
         rng = self.rng
         outfield = [s for s in side.slots if s.player.position != "GK"]
-        if not outfield:
-            return
+        if forced is not None:
+            off_slot = next((s for s in side.slots if s.player is forced), None)
+            if off_slot is None:
+                return
+        else:
+            if not outfield:
+                return
+            # Take off the most tired, with some noise.
+            outfield.sort(key=lambda s: -(self._fatigue(side, s) + rng.gauss(0, 0.08)))
+            off_slot = outfield[0]
         chasing = side.goals < self.other(side).goals
-        # Take off the most tired, with some noise.
-        outfield.sort(key=lambda s: -(self._fatigue(side, s) + rng.gauss(0, 0.08)))
-        off_slot = outfield[0]
         pos = off_slot.player.position
         pool = [p for p in side.bench if p.position == pos]
-        if chasing and pos in ("CB", "DM", "RB", "LB") and self.match_seconds() > 70 * 60:
+        if pos == "GK":
+            pool = pool or [p for p in side.bench if p.position == "GK"]
+        elif forced is None and chasing and pos in ("CB", "DM", "RB", "LB") and self.match_seconds() > 70 * 60:
             pool = [p for p in side.bench if p.position in ("ST", "AM", "RW", "LW")] or pool
-        if not pool:
+        if not pool and pos != "GK":
             pool = [p for p in side.bench if p.position in RELATED_POSITIONS.get(pos, [])]
-        if not pool:
+        if not pool and pos != "GK":
             pool = [p for p in side.bench if p.position != "GK"]
         if not pool:
             return
         on = max(pool, key=lambda p: p.overall)
         side.bench.remove(on)
+        side.subs_used += 1
         minute = int(self.match_seconds() // 60)
         self._emit(side, "substitution", off_slot.player, 52.5, 34, side,
-                   related=on, outcome="off")
+                   related=on, outcome=reason)
         side.lineup[off_slot.player.player_id]["minute_off"] = minute
         side.lineup[on.player_id] = {"player_id": on.player_id, "slot": off_slot.slot,
                                      "position": on.position, "started": False,
@@ -616,6 +732,7 @@ class MatchEngine:
             w["take_on"] = 0 if is_gk or pos == "CB" else 0.4
             w["clear"] = (9 if up else 1.2) if pos in ("CB", "RB", "LB", "DM", "GK") else 0
             w["back"] = 0 if is_gk else 8 - 6 * aggr_att
+            w["recycle"] = (20 + 16 * (0.5 - directness) - 6 * aggr_att) * (0.6 if up else 1.0)
         elif x < 70:
             w["short"] = 58
             w["long"] = 3 + 9 * directness
@@ -623,22 +740,26 @@ class MatchEngine:
             w["switch"] = 3.5 if not up else 1
             w["carry"] = 17
             w["take_on"] = max(0.2, 0.9 + 0.035 * (a["dribbling"] - 60))
-            w["back"] = 9 - 7 * aggr_att + 3 * up
+            w["back"] = 13 - 8 * aggr_att + 3 * up
+            if x < 55:
+                w["recycle"] = max(1.0, 11 + 12 * (0.5 - directness) - 6 * aggr_att)
             if x > 62 and abs(y - GOAL_Y) < 15:
                 w["shot"] = 0.5 + 1.0 * shoot
         elif not box:
             w["short"] = 46
             w["through"] = 0.9 + 1.1 * directness
-            w["cross"] = (7 + 11 * crossing + 4 * aggr_att) if wide else 0.5
+            w["cross"] = (8 + 12 * crossing + 4 * aggr_att) if wide else 0.5
             w["carry"] = 9
             w["take_on"] = max(0.4, 2.3 + 0.06 * (a["dribbling"] - 60))
             w["back"] = 10 - 6 * aggr_att
             if x > 76 and not wide:
-                w["shot"] = max(0.8, 5.6 + 5.0 * shoot + 0.1 * (a["finishing"] - 60) + 3 * aggr_att)
+                w["shot"] = max(0.8, 6.4 + 5.0 * shoot + SHOT_FIN_OUT * (a["finishing"] - 60) + 3 * aggr_att)
+            elif x > 76 and pos in ("RW", "LW", "AM") and abs(y - GOAL_Y) < 25:
+                w["shot"] = max(0.5, WIDE_SHOT * (5.6 + 5.0 * shoot + SHOT_FIN_OUT * (a["finishing"] - 60) + 3 * aggr_att))
         else:
-            w["shot"] = max(1.5, 4.0 + 6.5 * shoot + 0.55 * (a["finishing"] - 60) + 4 * aggr_att)
+            w["shot"] = max(1.5, BOX_SHOT + 6.5 * shoot + SHOT_FIN_BOX * (a["finishing"] - 60) + 4 * aggr_att)
             if abs(y - GOAL_Y) > 12:
-                w["shot"] *= 0.35
+                w["shot"] *= WIDE_BOX_SHOT if pos in ("RW", "LW", "AM") else 0.35
                 w["cross"] = 12
             w["short"] = 36
             w["take_on"] = max(0.4, 3.3 + 0.08 * (a["dribbling"] - 60))
@@ -650,6 +771,9 @@ class MatchEngine:
                 w["shot"] *= 0.25
         elif pos in ("RW", "LW", "AM"):
             w["take_on"] = w.get("take_on", 0) * 1.6
+        if "shot" in w:
+            # Goals are shared: inside forwards and No. 10s shoot more, the striker a little less.
+            w["shot"] *= POS_SHOT.get(pos, 1.0)
         if up:
             w["carry"] = w.get("carry", 0) * 0.6
         if transition:
@@ -682,7 +806,9 @@ class MatchEngine:
         aggr = self._aggr(att)
         directness = st.get("directness", 0.5)
         if kind == "short":
-            dx = rng.gauss(3.0 + 5 * directness + 4 * aggr, 8.5)
+            # Build-up passes in the own third go sideways more; further up they go forward.
+            fwd = (0.5 + 4 * directness + 3 * aggr) if x < 35 else (3.0 + 5 * directness + 4 * aggr)
+            dx = rng.gauss(fwd, 8.5)
             dy = rng.gauss(0, 10)
             if x > 40 and rng.random() < 0.35:
                 dy = self._lane_target_y(att, y, 10) - y
@@ -695,7 +821,7 @@ class MatchEngine:
                 dx, dy = dx * s, dy * s
             ptype = "short" if math.hypot(dx, dy) < 18 else "medium"
         elif kind == "back":
-            dx = -abs(rng.gauss(9, 5))
+            dx = -abs(rng.gauss(12, 6)) if x >= 35 else -abs(rng.gauss(9, 5))
             dy = rng.gauss(0, 9)
             ptype = "back"
         elif kind == "long":
@@ -707,6 +833,12 @@ class MatchEngine:
             dx = rng.gauss(17, 5)
             dy = rng.gauss(0, 6)
             ptype = "through"
+        elif kind == "recycle":
+            # Keep the ball: find a defender or the keeper and play it to him.
+            px, py = self._recycle_target(att, carrier, x, y, up)
+            dx, dy = px - x + rng.gauss(0, 2), py - y + rng.gauss(0, 2)
+            ln = math.hypot(dx, dy)
+            ptype = "back" if dx < -4 else ("short" if ln < 18 else "medium")
         else:  # switch
             dx = rng.gauss(4, 6)
             dy = (58 if y < 34 else 10) - y + rng.gauss(0, 4)
@@ -821,6 +953,34 @@ class MatchEngine:
         self._emit(att, "ball_recovery", receiver.player, tx, ty_c, att)
         return ("continue", receiver.player, tx, ty_c, False)
 
+    def _recycle_target(self, att: Side, carrier: Player, x: float, y: float, up: bool) -> tuple[float, float]:
+        """Position of a team-mate in the back line (or the keeper) to keep possession with."""
+        opts, wts = [], []
+        for s in att.slots:
+            pos = s.player.position
+            if s.player is carrier or pos not in ("GK", "CB", "RB", "LB", "DM"):
+                continue
+            if pos == "GK" and x > 45:
+                continue
+            px, py = self._pos_att(att, s, x, y)
+            if px > x + 6:
+                continue
+            d = math.hypot(px - x, py - y)
+            w = {"GK": 0.9 if up else 0.4, "CB": 1.5, "DM": 0.9}.get(pos, 0.8)
+            opts.append((px, py))
+            wts.append(w * math.exp(-max(0.0, d - 10) / 14))
+        if not opts:
+            return x - 8, y
+        return self.rng.choices(opts, weights=wts)[0]
+
+    def _cut_inside(self, carrier: Player, x: float, y: float) -> float:
+        """Wide attackers in the final third often drive inside onto their stronger foot."""
+        if carrier.position not in ("RW", "LW", "AM") or x < 66 or abs(y - GOAL_Y) < 10:
+            return 0.0
+        if self.rng.random() > 0.55:
+            return 0.0
+        return math.copysign(self.rng.uniform(4, 9), GOAL_Y - y)
+
     def _ball_speed(self, length: float) -> float:
         return round(_clamp(22 + 1.35 * length + self.rng.gauss(0, 6), 15, 110), 1)
 
@@ -838,7 +998,7 @@ class MatchEngine:
                  - self._fat_pen(att, cslot) - (0.25 if up else 0) + 1.1 * self._def_tired(dfn))
             p = _sig(v)
             nx = _clamp(x + rng.uniform(4, 10), 1, 104)
-            ny = _clamp(y + rng.gauss(0, 4), 1, 67)
+            ny = _clamp(y + rng.gauss(0, 4) + self._cut_inside(carrier, x, y), 1, 67)
             if rng.random() < p:
                 self._emit(att, "take_on", carrier, x, y, att, outcome="success", end=(nx, ny),
                            related=d, under_pressure=up, difficulty=round(1 - p, 3))
@@ -858,6 +1018,7 @@ class MatchEngine:
             return ("restart", ("turnover", dfn, L - x, W - y, d))
         dist = _clamp(rng.gauss(6 + 4 * aggr, 3.5), 1.5, 18)
         ty = self._lane_target_y(att, y, 5) if rng.random() < 0.3 else y + rng.gauss(0, 3)
+        ty += self._cut_inside(carrier, x, y)
         ang = math.atan2(ty - y, 10)
         nx = _clamp(x + dist * math.cos(ang), 1, 104)
         ny = _clamp(y + dist * math.sin(ang), 1, 67)
@@ -906,10 +1067,17 @@ class MatchEngine:
         tx = _clamp(rng.gauss(95.5, 3.2), 88, 103)
         ty = _clamp(rng.gauss(GOAL_Y, 6.5), 22, 46)
         length = math.hypot(tx - x, ty - y)
+        # Who attacks the ball: at set pieces the five best in the air (centre-backs come up);
+        # in open play the forwards and midfielders who arrive in the box. Spread over several
+        # players, so no one heads in a season's worth of goals.
         targets = [s for s in att.slots if s.player is not carrier and s.player.position != "GK"]
+        if not set_piece:
+            targets = [s for s in targets if s.player.position in ("ST", "RW", "LW", "AM", "CM")] or targets
         targets.sort(key=lambda s: -(s.player.attrs["aerial"] + (12 if s.player.position == "ST" else 0)
                                      + (8 if set_piece and s.player.position == "CB" else 0)))
-        tgt = rng.choice(targets[:3]).player
+        pool = targets[:5] if set_piece else targets[:4]
+        weights = (0.28, 0.24, 0.2, 0.16, 0.12) if set_piece else (0.4, 0.25, 0.2, 0.15)
+        tgt = rng.choices(pool, weights=weights[:len(pool)])[0].player
         gk = dfn.gk().player
         dfd = self._pick_defender(dfn, tx, ty).player
         if set_piece:
@@ -939,13 +1107,13 @@ class MatchEngine:
             # Keeper flaps / spills - big chance follows.
             edge += 0.8
         won = self._aerial(att, dfn, tgt, dfd, tx, ty,
-                           set_piece_edge=edge - (1.35 if set_piece else 1.85))
+                           set_piece_edge=edge - (1.7 if set_piece else 1.85))
         if won:
             self._emit(att, "pass", carrier, x, y, att, outcome="complete", end=(tx, ty),
                        receiver=tgt, pass_type="cross", pass_length=round(length, 1),
                        under_pressure=up, difficulty=0.7, set_piece=set_piece, ball_speed_kmh=speed)
             self._tick(1.5 + length / 20)
-            if rng.random() < 0.55:
+            if rng.random() < 0.45:   # a won header goes at goal; otherwise it is knocked down
                 return ("restart", self._shot(att, dfn, tgt, tx, ty, False, header=True))
             return ("continue", tgt, tx - rng.uniform(0, 4), ty, True)
         self._emit(att, "pass", carrier, x, y, att, outcome="incomplete", end=(tx, ty),
@@ -986,12 +1154,18 @@ class MatchEngine:
         gk = gk_slot.player
         xg = xg_override if xg_override is not None else xg_model(x, y, header)
         sslot = self._slot_of(att, shooter)
-        v = (_logit(xg) + 0.032 * (a["finishing"] - 74) + 0.02 * (a["composure"] - 75)
-             - 0.04 * (gk.attrs["gk_shot_stopping"] - 75) - (0.25 if up else 0.0) + 0.07
-             + 0.5 * self._side_bonus(att) - 0.6 * self._fat_pen(att, sslot)
+        # Finishing skill moves conversion a little around the xG model, as in real data: an
+        # ordinary shooter converts at about xG, an elite finisher at roughly 1.2-1.3x, a centre-back
+        # at about 0.8x. Above 88 the effect steepens, so genuinely clinical finishers stand out.
+        fin = a["finishing"]
+        v = (_logit(xg) + FIN_SLOPE * (fin - 72) + FIN_ELITE * max(0.0, fin - 88)
+             + 0.002 * (a["composure"] - 75)
+             - GK_SLOPE * (gk.attrs["gk_shot_stopping"] - 75) - (0.25 if up else 0.0) + SHOT_BASE
+             + 0.3 * self._side_bonus(att) - 0.6 * self._fat_pen(att, sslot)
              + 0.5 * self._def_tired(dfn))
         if header:
-            v += 0.03 * (a["aerial"] - 72)
+            # Headers are hard to place: about one goal in six is headed in a top league.
+            v += 0.012 * (a["aerial"] - 72) + HEADER_PEN
         p_goal = _sig(v)
         p_block = 0.0 if set_piece in ("penalty", "free_kick") else (0.33 if not in_box(x, y) else 0.2)
         if header:
@@ -1086,6 +1260,10 @@ class MatchEngine:
                 self._tick(rng.uniform(15, 30))
         self.stoppages += 1
         self._tick(rng.uniform(18, 40))
+        booked = r < p_red + p_yellow
+        if any(s.player is victim for s in victims.slots) and \
+                rng.random() < CONTACT_INJURY_AFTER_FOUL * (2.2 if booked else 1.0) * proneness(victim) ** 0.5:
+            self._injure(victims, victim, "contact", x, y, victims)
         if in_box(x, y):
             return ("penalty", victims, 94.0, 34.0, None)
         return ("free_kick", victims, x, y, victim)
@@ -1102,9 +1280,11 @@ class MatchEngine:
 
     # ------------------------------------------------------------------ set pieces
     def _taker(self, side: Side, positions: tuple[str, ...] = ()) -> Player:
+        """The main set-piece taker most of the time, his deputy otherwise (other foot, other side)."""
         pool = [s.player for s in side.slots if s.player.position != "GK"
                 and (not positions or s.player.position in positions)] or [s.player for s in side.outfield()]
-        return max(pool, key=lambda p: p.attrs["set_piece"])
+        ranked = sorted(pool, key=lambda p: -p.attrs["set_piece"])
+        return ranked[1] if len(ranked) > 1 and self.rng.random() < 0.35 else ranked[0]
 
     def _corner(self, att: Side, dfn: Side, y: float):
         rng = self.rng
@@ -1129,9 +1309,10 @@ class MatchEngine:
         rng = self.rng
         dist = math.hypot(L - x, GOAL_Y - y)
         central = abs(y - GOAL_Y) < 16
-        if x > 75 and dist < 32 and central and rng.random() < 0.6:
+        if x > 75 and dist < 32 and central and rng.random() < 0.45:
+            # Direct free kicks: about one in sixteen goes in.
             taker = self._taker(att, ("AM", "CM", "RW", "LW", "ST", "LB", "RB"))
-            xg = round(_clamp(0.11 - 0.0028 * (dist - 18), 0.025, 0.11), 4)
+            xg = round(_clamp(0.085 - 0.0025 * (dist - 18), 0.025, 0.085), 4)
             return ("restart", self._shot(att, dfn, taker, x, y, False, header=False,
                                           set_piece="free_kick", xg_override=xg))
         if x > 70 and not central or (x > 82):
@@ -1155,7 +1336,8 @@ class MatchEngine:
         taker = max(att.outfield(), key=lambda s: s.player.attrs["finishing"] * 0.6
                     + s.player.attrs["composure"] * 0.4).player
         gk = dfn.gk().player
-        v = (_logit(0.76) + 0.03 * (taker.attrs["composure"] - 76) + 0.02 * (taker.attrs["finishing"] - 78)
+        # Centred on a typical taker (a club's best finisher): about four in five go in.
+        v = (_logit(0.79) + 0.03 * (taker.attrs["composure"] - 82) + 0.02 * (taker.attrs["finishing"] - 86)
              - 0.035 * (gk.attrs["gk_shot_stopping"] - 75))
         p = _sig(v)
         speed = round(_clamp(rng.gauss(95, 10), 60, 125), 1)

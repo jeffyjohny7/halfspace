@@ -67,7 +67,8 @@ EVENT_TYPES = {
     "foul_won": "Foul suffered",
     "card": "card: yellow / second_yellow / red",
     "offside": "Player caught offside",
-    "substitution": "player_id goes off, related_player_id comes on",
+    "substitution": "player_id goes off, related_player_id comes on. outcome: off (tactical) / injury",
+    "injury": "Player hurt. outcome: off (replaced) / played_on (carries a knock). Details in injuries.csv",
     "period_start": "Half starts",
     "period_end": "Half ends",
 }

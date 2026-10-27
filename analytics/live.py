@@ -8,7 +8,8 @@ of play since kick-off), so the same code serves a live feed and a replay.
 * key_moments()    goals, big chances, penalties, cards, subs, momentum swings,
                    pressure spells - each with an importance score and event refs
 * track()          checks pre-match predictions against what is happening
-* player()         one player's live line (for a player-focus viewing mode)
+* player()         one player's live line (for a player-focus viewing mode), with his rating
+* ratings()        every player's match rating so far, explained (see rating.py)
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from . import rating as rating_mod
 from . import xt as xt_mod
 from .build import build_shots, enrich
 from .store import Store
@@ -67,6 +69,7 @@ class LiveMatch:
         self.lineups = lineups
         self.reference = reference
         self.end_clock = float(self.ev.clock_s.max())
+        self.rating_actions = rating_mod.actions(self.ev, self.shots, lineups)
 
     @classmethod
     def showcase(cls, store: Store) -> "LiveMatch":
@@ -209,8 +212,18 @@ class LiveMatch:
             red = str(r.card) in ("red", "second_yellow")
             add(r, "red_card" if red else "yellow_card", 0.9 if red else 0.25, r.team,
                 {"player": pn(r.player_id), "card": str(r.card)}, [r.event_id])
-        for r in ev[ev.t == "substitution"].itertuples():
+        subs = ev[ev.t == "substitution"]
+        for r in subs.itertuples():
+            if str(r.o) == "injury":
+                continue                      # reported with the injury itself
             add(r, "substitution", 0.2, r.team, {"off": pn(r.player_id), "on": pn(r.related_player_id)}, [r.event_id])
+        for r in ev[ev.t == "injury"].itertuples():
+            off = str(r.o) == "off"
+            rep = subs[(subs.player_id.astype(object) == r.player_id) & (subs.o.astype(str) == "injury")]
+            facts = {"player": pn(r.player_id), "outcome": "replaced" if off else "carries on",
+                     "replaced_by": pn(rep.related_player_id.iloc[0]) if off and len(rep) else None}
+            add(r, "injury", 0.55 if off else 0.3, r.team, facts,
+                [r.event_id] + ([int(rep.event_id.iloc[0])] if off and len(rep) else []))
         moments += self._swings(ev, shots)
         moments = [m for m in moments if m["clock_s"] > since_s and m["importance"] >= min_importance]
         moments.sort(key=lambda m: m["clock_s"])
@@ -324,6 +337,41 @@ class LiveMatch:
                         "full_match_pace": pace, "status": status, "minute": minute})
         return clean(out)
 
+    # ------------------------------------------------------------------ ratings
+    def _played_by(self, clock_s: float) -> pd.DataFrame:
+        """Line-up rows of players who have been on the pitch by clock_s (no future substitutions)."""
+        ev = self.upto(clock_s)
+        came_on = set(ev[ev.t == "substitution"].related_player_id.dropna().astype(str))
+        lu = self.lineups
+        return lu[(lu.started == True) | lu.player_id.astype(str).isin(came_on)]  # noqa: E712
+
+    def rating(self, player_id: str, clock_s: float) -> dict:
+        clock_s = min(float(clock_s), self.end_clock)
+        if player_id not in set(self._played_by(clock_s).player_id.astype(str)):
+            return {"rating": None, "note": "Has not played yet."}
+        a = self.rating_actions
+        a = a[(a.player_id == player_id) & (a.clock_s <= clock_s)]
+        return clean({"rating": round(float(rating_mod.clamp(rating_mod.BASE + a.delta.sum())), 1),
+                      "starts_at": rating_mod.BASE, "why": rating_mod.breakdown(a, top=6),
+                      "stats": rating_mod.stat_line(a)}, nd=2)
+
+    def ratings(self, clock_s: float) -> dict:
+        clock_s = min(float(clock_s), self.end_clock)
+        a = self.rating_actions[self.rating_actions.clock_s <= clock_s]
+        r = rating_mod.match_ratings(a, self._played_by(clock_s))
+        out = {}
+        for team in (self.home_id, self.away_id):
+            t = r[r.team_id.astype(str) == team].sort_values("rating", ascending=False)
+            out[self._name(team)] = [
+                {"player": self.store.player_name(p), "rating": round(float(v), 1),
+                 "top_reasons": rating_mod.breakdown(a[a.player_id == p], top=3)}
+                for p, v in zip(t.player_id, t.rating)]
+        best = r.sort_values("rating", ascending=False).head(1)
+        return clean({"minute": self._clock_label(self.upto(clock_s))["minute"], "by_team": out,
+                      "highest": None if best.empty else {"player": self.store.player_name(best.player_id.iloc[0]),
+                                                          "rating": round(float(best.rating.iloc[0]), 1)},
+                      "how": "Everyone starts at 6.0; each action adds or removes a fixed amount (rating_scale)."}, nd=2)
+
     # ------------------------------------------------------------------ player focus
     def player(self, player_id: str, clock_s: float) -> dict:
         clock_s = min(float(clock_s), self.end_clock)
@@ -357,17 +405,24 @@ class LiveMatch:
             "aerials_lost": int(((me.t == "aerial_duel") & (me.o == "lost")).sum()),
             "tackles": int(((me.t == "tackle") & (me.o == "won")).sum()), "interceptions": int((me.t == "interception").sum()),
             "fouls": int((me.t == "foul").sum()), "cards": [str(c) for c in me[me.t == "card"].card],
-            "fastest_shot_kmh": float(shots.ball_speed_kmh.max()) if len(shots) else None,
+            "fastest_shot_kmh": _max_or_none(me[me.t == "shot"], "ball_speed_kmh"),
             "longest_pass_m": float(passes.pass_length.max()) if len(passes) else None,
             "hardest_completed_pass": None if hardest.empty else {
                 "difficulty": float(hardest.difficulty.iloc[0]), "minute": int(hardest.minute.iloc[0]),
                 "event_id": int(hardest.event_id.iloc[0]), "length_m": float(hardest.pass_length.iloc[0])},
             "pass_difficulty_note": "Difficulty 0-1 = chance an average passer would fail this pass in this context.",
+            "match_rating": self.rating(player_id, clock_s),
         })
 
     def events(self, event_ids: list[int], clock_s: float) -> list[dict]:
         ev = self.upto(clock_s)
         return _event_rows(self.store, ev[ev.event_id.isin(event_ids)])
+
+
+def _max_or_none(df: pd.DataFrame, col: str) -> float | None:
+    if col not in df.columns or df.empty or df[col].isna().all():
+        return None
+    return float(df[col].max())
 
 
 def _event_rows(store: Store, ev: pd.DataFrame) -> list[dict]:

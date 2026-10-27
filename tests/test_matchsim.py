@@ -83,6 +83,45 @@ def test_double_round_robin():
     assert len(pairs) == 20 * 19  # everyone hosts everyone once
 
 
+def _venues(rounds, ids):
+    seq = {c: [] for c in ids}
+    for rnd in rounds:
+        for h, a in rnd:
+            seq[h].append("H")
+            seq[a].append("A")
+    return seq
+
+
+def _longest_run(s):
+    best = run = 1
+    for i in range(1, len(s)):
+        run = run + 1 if s[i] == s[i - 1] else 1
+        best = max(best, run)
+    return best
+
+
+def test_home_and_away_alternate():
+    for n in (20, 24):
+        ids = [f"C{i:02d}" for i in range(n)]
+        for seed in range(20):
+            seq = _venues(double_round_robin(ids, random.Random(seed)), ids)
+            for s in seq.values():
+                assert s.count("H") == s.count("A") == n - 1
+                assert 4 <= s[:10].count("H") <= 6        # balanced early on, not 10 home games in a row
+                assert _longest_run(s) <= 3
+
+
+def test_featured_fixture_lands_in_its_round():
+    ids = [f"C{i:02d}" for i in range(1, 21)]
+    for seed in range(10):
+        rounds = double_round_robin(ids, random.Random(seed), feature=("C01", "C20", 11))
+        assert ("C01", "C20") in rounds[10]
+        assert sum(("C01", "C20") in r for r in rounds) == 1
+        assert ("C20", "C01") in rounds[29]                # the return fixture in the second half
+        for s in _venues(rounds, ids).values():
+            assert s.count("H") == 19
+
+
 def test_calendar():
     dates = league_calendar(46, 2025, random.Random(2))
     assert len(dates) == 46

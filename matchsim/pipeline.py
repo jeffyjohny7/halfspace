@@ -25,7 +25,8 @@ from . import realism
 from .config import SimConfig
 from .engine import MatchEngine
 from .names import LEAGUE_NAMES
-from .season import (EventWriter, SeasonResults, apply_rest_and_rotation,
+from .injuries import Tracker, proneness
+from .season import (EventWriter, SeasonResults, apply_rest_and_rotation, europe_dates,
                      european_calendar, league_fixtures, match_seed, run_playoffs,
                      simulate_fixtures, standings)
 from .universe import (Truth, Universe, build_universe, natural_extremes,
@@ -71,7 +72,8 @@ def _snapshot(u: Universe, season: str) -> dict[str, list[dict]]:
                            "shirt": p.shirt, "position": p.position})
             attrs.append({"season": season, "club_id": c.club_id, "player_id": p.player_id,
                           "name": p.name, "position": p.position,
-                          "overall": round(p.overall, 1), **p.attrs})
+                          "overall": round(p.overall, 1), **p.attrs,
+                          "injury_proneness": round(proneness(p), 3)})
     return {"club_seasons": club_seasons, "squads": squads, "attrs": attrs, "styles": styles}
 
 
@@ -215,13 +217,16 @@ def generate(cfg: SimConfig) -> dict:
     apply_rest_and_rotation(fx1, euro_prev)
     apply_rest_and_rotation(fx2, [])
     res_prev = SeasonResults()
+    tracker = Tracker(seed=cfg.seed)
+    tracker.new_season(prev)
     w_prev = EventWriter(os.path.join(pub, "events", f"events_{prev}.parquet"))
     print(f"Simulating {prev}: {len(fx1)} top-division + {len(fx2)} second-tier matches...", flush=True)
-    simulate_fixtures(fx1 + fx2, clubs, cfg.seed, w_prev, cfg.workers, res_prev, progress=prev)
+    simulate_fixtures(fx1 + fx2, clubs, cfg.seed, w_prev, cfg.workers, res_prev, progress=prev,
+                      tracker=tracker, europe=europe_dates(euro_prev))
     table1 = standings(res_prev.matches, [c.club_id for c in div1], names)
     table2 = standings(res_prev.matches, [c.club_id for c in div2], names)
     po_winner, po_log = run_playoffs(table2, clubs, prev, prev_year, cfg.seed, w_prev, res_prev,
-                                     cfg.playoff_places)
+                                     cfg.playoff_places, tracker=tracker)
     w_prev.close()
 
     relegated = [r["club_id"] for r in table1[-cfg.relegation_spots:]]
@@ -254,17 +259,36 @@ def generate(cfg: SimConfig) -> dict:
     for r in table1[cfg.champions_league_spots: cfg.champions_league_spots + cfg.europa_league_spots]:
         euro_cur_q[r["club_id"]] = "europa_league"
     euro_cur = european_calendar(euro_cur_q, {c.club_id: c.quality for c in div1}, cur_year, rng)
+    d1_ids = {c.club_id for c in div1}
+    pick = cfg.showcase_pair if cfg.showcase_pair and set(cfg.showcase_pair) <= d1_ids else None
+    if cfg.showcase_pair and pick is None:
+        print(f"  showcase pair {cfg.showcase_pair} is not in the top division this season; "
+              "picking the best storyline instead", flush=True)
     fx_cur_all = league_fixtures(div1, cur, LEAGUE_NAMES[1], 1, cur_year, rng,
-                                 rounds_limit=cfg.showcase_round)
+                                 rounds_limit=cfg.showcase_round,
+                                 feature=(pick[0], pick[1], cfg.showcase_round) if pick else None)
     apply_rest_and_rotation(fx_cur_all, euro_cur)
     played = [f for f in fx_cur_all if f.round <= cfg.current_rounds_played]
     upcoming = [f for f in fx_cur_all if f.round == cfg.showcase_round]
     res_cur = SeasonResults()
+    tracker.new_season(cur)
+    euro_cur_dates = europe_dates(euro_cur)
     w_cur = EventWriter(os.path.join(pub, "events", f"events_{cur}.parquet"))
     print(f"Simulating {cur} rounds 1-{cfg.current_rounds_played}: {len(played)} matches...", flush=True)
-    simulate_fixtures(played, clubs, cfg.seed, w_cur, cfg.workers, res_cur, progress=cur)
+    simulate_fixtures(played, clubs, cfg.seed, w_cur, cfg.workers, res_cur, progress=cur,
+                      tracker=tracker, europe=euro_cur_dates)
     w_cur.close()
     table_cur = standings(res_cur.matches, [c.club_id for c in div1], names)
+
+    # Team news for the next round (published before kick-off; the live match is not simulated yet).
+    upcoming_news: list[dict] = []
+    upcoming_sel: dict[str, tuple[set, set]] = {}
+    for f in sorted(upcoming, key=lambda f: (f.date, f.match_id)):
+        tracker.training([clubs[f.home_id], clubs[f.away_id]], f.date, euro_cur_dates)
+    for f in upcoming:
+        for cid in (f.home_id, f.away_id):
+            upcoming_sel[cid] = tracker.selection(clubs[cid], f.date)
+            upcoming_news += tracker.news(clubs[cid], f.date, f)
 
     # ---------------- showcase
     print("Choosing the showcase match...", flush=True)
@@ -275,14 +299,18 @@ def generate(cfg: SimConfig) -> dict:
         s += 1.0 if pos[f.home_id] <= 8 and pos[f.away_id] <= 8 else 0.0
         scored.append((s, f, notes))
     scored.sort(key=lambda t: -t[0])
+    if pick:
+        scored.sort(key=lambda t: (t[1].home_id, t[1].away_id) != tuple(pick))  # stable: keeps the rest ranked
     _s, show_fx, show_notes = scored[0]
     variants = []
     best = None
     for k in range(cfg.showcase_variants):
         seed = match_seed(cfg.seed + 7919 * (k + 1), show_fx.match_id)
+        (ho, hd), (ao, ad) = upcoming_sel[show_fx.home_id], upcoming_sel[show_fx.away_id]
         eng = MatchEngine(show_fx.match_id, clubs[show_fx.home_id], clubs[show_fx.away_id], seed,
                           home_fatigue=show_fx.home_fatigue, away_fatigue=show_fx.away_fatigue,
-                          home_rotation=show_fx.home_rotation, away_rotation=show_fx.away_rotation)
+                          home_rotation=show_fx.home_rotation, away_rotation=show_fx.away_rotation,
+                          home_out=ho, away_out=ao, home_doubtful=hd, away_doubtful=ad)
         r = eng.simulate()
         ns, detail = narrative_score(r.events, show_fx.home_id, show_fx.away_id, truths_cur)
         variants.append({"variant": k, "seed": seed, "narrative_score": ns, **detail})
@@ -351,6 +379,13 @@ def generate(cfg: SimConfig) -> dict:
                             for c, comp in euro_cur_q.items()],
         **asdict(off_log),
     })
+    # Injuries and bans. Actual return dates are only public once they have happened.
+    cutoff = show_fx.date.isoformat()
+    inj_public = [{**r, "return_date": r["return_date"] if r["return_date"] <= cutoff else None}
+                  for r in tracker.injuries if r["date"] <= cutoff]
+    _write_csv(os.path.join(pub, "injuries.csv"), inj_public)
+    _write_csv(os.path.join(pub, "suspensions.csv"), tracker.suspensions)
+    _write_csv(os.path.join(pub, "team_news.csv"), res_prev.team_news + res_cur.team_news + upcoming_news)
     _write_json(os.path.join(show_dir, "showcase_match.json"), show_meta)
     _write_csv(os.path.join(show_dir, "showcase_lineups.csv"), show_lineups)
 
@@ -384,6 +419,10 @@ def generate(cfg: SimConfig) -> dict:
         "showcase": f"{names[show_fx.home_id]} vs {names[show_fx.away_id]} "
                     f"(round {show_fx.round}, variant {show_k})",
         "truths": {prev: len(truths_prev), cur: len(truths_cur)},
+        "injuries": {prev: sum(r["season"] == prev for r in tracker.injuries),
+                     cur: sum(r["season"] == cur for r in tracker.injuries)},
+        "suspensions": {prev: sum(r["season"] == prev for r in tracker.suspensions),
+                        cur: sum(r["season"] == cur for r in tracker.suspensions)},
         "realism_checks_passed": f"{report['passed']}/{report['total']}",
     }
     _write_json(os.path.join(rep, "run_summary.json"), summary)

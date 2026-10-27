@@ -30,10 +30,20 @@ def _ok(v) -> bool:
     return v is not None and not (isinstance(v, float) and v != v)
 
 
-def write_clock(path: Path, match_id: str, clock_s: float) -> None:
+def write_clock(path: Path, match_id: str, clock_s: float, retries: int = 6) -> bool:
+    """Atomically update the live clock. On Windows another program (VS Code, the search
+    indexer, antivirus, the MCP server) can hold the file for a moment, so retry briefly,
+    then skip this update rather than crash - the next update will catch up."""
+    data = json.dumps({"match_id": match_id, "clock_s": round(clock_s, 1)})
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"match_id": match_id, "clock_s": round(clock_s, 1)}), encoding="utf-8")
-    os.replace(tmp, path)
+    for attempt in range(retries):
+        try:
+            tmp.write_text(data, encoding="utf-8")
+            os.replace(tmp, path)
+            return True
+        except PermissionError:
+            time.sleep(0.02 * (attempt + 1))
+    return False
 
 
 def main() -> None:
@@ -60,6 +70,7 @@ def main() -> None:
     start = args.from_minute * 60.0
     print(f"{meta['home']} vs {meta['away']} - replaying at {args.speed:g}x", flush=True)
     t0 = time.time()
+    last_write = 0.0
     for r in ev.itertuples():
         if r.clock_s < start:
             continue
@@ -67,8 +78,12 @@ def main() -> None:
         wait = due - (time.time() - t0)
         if wait > 0:
             time.sleep(wait)
-        write_clock(clock_file, meta["match_id"], r.clock_s)
-        if args.all_events or r.type in SHOW:
+        notable = r.type in SHOW
+        # Update the clock at most 5 times a second (and always at notable events).
+        if notable or time.time() - last_write >= 0.2:
+            if write_clock(clock_file, meta["match_id"], r.clock_s):
+                last_write = time.time()
+        if args.all_events or notable:
             who = pnames.get(r.player_id, "") if _ok(r.player_id) else ""
             extra = f" {r.outcome}" if _ok(r.outcome) else ""
             if r.type == "shot":

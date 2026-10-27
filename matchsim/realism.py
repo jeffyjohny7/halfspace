@@ -39,15 +39,38 @@ REFERENCE = {
     "late_goal_share": (0.17, 0.30, "Share of goals scored after the 75th minute"),
     "added_time_1h": (1.5, 6.0, "Added time, first half (min)"),
     "added_time_2h": (4.0, 10.0, "Added time, second half (min)"),
-    "champion_points": (78.0, 100.0, "Champion's points (38 games)"),
+    "champion_points": (75.0, 100.0, "Champion's points (38 games)"),  # 38-game Premier League champions: 75-100
     "safety_points": (30.0, 42.0, "17th place points"),
     "bottom_points": (10.0, 35.0, "Bottom club's points"),
     "max_team_possession": (0.55, 0.67, "Highest season possession share"),
     "min_team_possession": (0.33, 0.45, "Lowest season possession share"),
 }
 
+# Players and squads (approximate top-flight figures; per 90 minutes unless stated).
+SQUAD_REFERENCE = {
+    "passes_p90_CB": (40.0, 75.0, "Passes per 90, centre-backs"),
+    "passes_p90_FB": (32.0, 65.0, "Passes per 90, full-backs"),
+    "passes_p90_MID": (42.0, 80.0, "Passes per 90, central and defensive midfielders"),
+    "passes_p90_W": (22.0, 48.0, "Passes per 90, wingers"),
+    "passes_p90_ST": (15.0, 36.0, "Passes per 90, strikers"),
+    "passes_p90_GK": (16.0, 40.0, "Passes per 90, goalkeepers"),
+    "injuries_per_club": (16.0, 45.0, "Injuries per club per season"),
+    "days_out_per_injury": (10.0, 35.0, "Average days out per injury"),
+    "unavailable_per_match": (1.0, 5.0, "Players injured or suspended per club per match"),
+    "suspensions_per_club": (1.0, 8.0, "Suspensions per club per season"),
+    # Leaderboards: what a fan sees first on a stats page.
+    "top_scorer_goals": (20.0, 37.0, "Top scorer's league goals"),
+    "top_assists": (10.0, 22.0, "Most league assists"),
+    "top_goals_minus_xg": (0.0, 12.0, "Biggest finishing overperformance (goals minus xG)"),
+    "shots_p90_ST": (1.8, 3.4, "Shots per 90, strikers"),
+    "shots_p90_W": (1.2, 3.0, "Shots per 90, wingers"),
+    "top_shots_p90": (3.0, 5.5, "Most shots per 90 (1,500+ minutes)"),
+}
+POSITION_GROUPS = {"CB": "CB", "RB": "FB", "LB": "FB", "DM": "MID", "CM": "MID", "RW": "W", "LW": "W",
+                   "ST": "ST", "GK": "GK"}
+
 EVENT_COLS = ["match_id", "event_id", "possession_id", "minute", "team_id", "player_id", "type",
-              "outcome", "x", "y", "end_x", "end_y", "under_pressure", "pass_type", "difficulty",
+              "outcome", "x", "y", "end_x", "end_y", "receiver_id", "under_pressure", "pass_type", "difficulty",
               "xg", "set_piece", "play_pattern", "set_piece_phase", "related_player_id", "card"]
 
 
@@ -100,6 +123,75 @@ def league_metrics(ev: pd.DataFrame, matches: pd.DataFrame, table: pd.DataFrame 
         m["bottom_points"] = float(t.iloc[-1].points)
     return {k: (float(v) if v is not None and not (isinstance(v, float) and math.isnan(v)) else None)
             for k, v in m.items()}
+
+
+def squad_metrics(ev: pd.DataFrame, lineups: pd.DataFrame, positions: dict, pub: str, season: str,
+                  clubs: set) -> dict:
+    m = {}
+    lu = lineups[lineups.match_id.isin(set(ev.match_id))].copy()
+    lu["group"] = lu.player_id.map(positions).map(POSITION_GROUPS)
+    mins = lu.groupby("group").minutes.sum()
+    passes = ev[ev.type == "pass"].copy()
+    passes["group"] = passes.player_id.astype(str).map(positions).map(POSITION_GROUPS)
+    cnt = passes.groupby("group").size()
+    for g in ("CB", "FB", "MID", "W", "ST", "GK"):
+        if mins.get(g):
+            m[f"passes_p90_{g}"] = float(cnt.get(g, 0) / mins[g] * 90)
+    m.update(leader_metrics(ev, lu))
+
+    def _csv(name):
+        path = os.path.join(pub, name)
+        return pd.read_csv(path) if os.path.exists(path) and os.path.getsize(path) else pd.DataFrame()
+    inj, sus, news = _csv("injuries.csv"), _csv("suspensions.csv"), _csv("team_news.csv")
+    n = max(1, len(clubs))
+    if len(inj):
+        i = inj[(inj.season == season) & inj.club_id.isin(clubs)]
+        m["injuries_per_club"] = len(i) / n
+        m["days_out_per_injury"] = float(i.days_out.mean()) if len(i) else None
+        m["match_injury_share"] = float(i.match_id.notna().mean()) if len(i) else None
+    if len(sus):
+        m["suspensions_per_club"] = len(sus[(sus.season == season) & sus.club_id.isin(clubs)]) / n
+    if len(news):
+        nn = news[(news.season == season) & news.club_id.isin(clubs) & news.status.isin(["injured", "suspended"])]
+        games = len(set(ev.match_id)) * 2
+        m["unavailable_per_match"] = len(nn) / max(1, games)
+    return m
+
+
+def leader_metrics(ev: pd.DataFrame, lu: pd.DataFrame) -> dict:
+    """Goals, assists and shot volume of the leading players (lu carries a 'group' column).
+    An assist is the last completed pass in the possession, received by the scorer."""
+    ev = ev.sort_values(["match_id", "event_id"])
+    sel = ev[((ev.type == "pass") & (ev.outcome == "complete")) | (ev.type == "shot")].copy()
+    for c in ("player_id", "receiver_id", "team_id"):
+        sel[c] = sel[c].astype(object)
+    is_pass = sel.type == "pass"
+    sel["passer"] = sel.player_id.where(is_pass)
+    sel["to"] = sel.receiver_id.where(is_pass)
+    sel["pteam"] = sel.team_id.where(is_pass)
+    sel[["passer", "to", "pteam"]] = sel.groupby(["match_id", "possession_id"])[["passer", "to", "pteam"]].ffill()
+    shots = sel[sel.type == "shot"]
+    goals = shots[shots.outcome == "goal"]
+    assisted = goals[(goals.to == goals.player_id) & (goals.pteam == goals.team_id)]
+    g = goals.groupby("player_id").size()
+    a = assisted.groupby("passer").size()
+    mins = lu.groupby("player_id").minutes.sum()
+    n_shots = shots.groupby("player_id").size()
+    xg = shots.groupby("player_id").xg.sum()
+    regular = mins[mins >= 1500]
+    sh90 = (n_shots.reindex(regular.index).fillna(0) / regular * 90)
+    def p90(group):
+        rows = lu[lu.group == group]
+        n = shots.player_id.isin(set(rows.player_id)).sum()   # players rarely change position group
+        return float(n / rows.minutes.sum() * 90) if rows.minutes.sum() else None
+    return {
+        "top_scorer_goals": float(g.max()) if len(g) else None,
+        "top_assists": float(a.max()) if len(a) else None,
+        "top_goals_minus_xg": float((g.reindex(xg.index).fillna(0) - xg).max()) if len(xg) else None,
+        "shots_p90_ST": p90("ST"),
+        "shots_p90_W": p90("W"),
+        "top_shots_p90": float(sh90.max()) if len(sh90) else None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -329,8 +421,12 @@ def build_report(out_dir: str, prev: str, cur: str, truths_prev, truths_cur) -> 
         metrics = league_metrics(e, mm, tab if (full and div == 1) else None)
         sections[f"{label} {season}"] = metrics
         if season == prev and div == 1:
-            for k, (lo, hi, desc) in REFERENCE.items():
-                v = metrics.get(k)
+            clubs_d1 = set(mm.home_id) | set(mm.away_id)
+            sq = squad_metrics(e, lineups, positions, pub, season, clubs_d1)
+            sections[f"Players and squads {season}"] = sq
+            metrics_all = {**metrics, **sq}
+            for k, (lo, hi, desc) in {**REFERENCE, **SQUAD_REFERENCE}.items():
+                v = metrics_all.get(k)
                 ok = v is not None and lo <= v <= hi
                 checks.append({"metric": k, "description": desc, "value": None if v is None else round(v, 3),
                                "low": lo, "high": hi, "pass": ok})

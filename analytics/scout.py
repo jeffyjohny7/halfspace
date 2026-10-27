@@ -123,6 +123,17 @@ TEAM_CHECKS = [
               "Keep the ball: {cur} of passes in their matches are theirs (league median {med}).", None, False),
 ]
 
+_VERB_START = ("Create ", "Concede ", "Play ", "Commit ", "Press ", "Sit ", "Keep ")
+
+
+def _with_club(club: str, text: str) -> str:
+    """Team findings always name their club. A subject-less line ("Create 0.45 xG per match...") reached the
+    writers as a bare fact, and the model sometimes guessed the wrong club."""
+    if text.startswith(_VERB_START):
+        return f"{club} {text[0].lower()}{text[1:]}"
+    return f"{club}: {text}"
+
+
 PCT_METRICS = {"dispossessed_per_pressed", "fouls_per_duel", "aerial_win_rate", "gk_claim_rate", "cross_completion",
                "left_entry_share", "right_entry_share", "possession", "long_pass_share", "completion_over_expected"}
 
@@ -237,8 +248,10 @@ class Scout:
                                  "z": _round(r.z, 2), "sample": _round(r.n * unit, 0), "division": int(r.division),
                                  "club_id": r.team_id, "percentile": _round(r.percentile, 0)}
                              for s, r, _w in parts}
+                # "completes 12.0% fewer passes", not "-12.0% fewer": the word already carries the sign.
+                cur = abs(ref.raw) if " fewer " in chk.template else ref.raw
                 text = chk.template.format(name=pl["name"], pos=pl.position,
-                                           cur=_fmt(chk.metric, ref.raw), med=_fmt(chk.metric, ref.peer_median))
+                                           cur=_fmt(chk.metric, cur), med=_fmt(chk.metric, ref.peer_median))
                 if len(parts) > 1 or (parts[0][0] != season):
                     text += " " + _season_note(by_season, season, chk.metric)
                 out.append({
@@ -286,7 +299,8 @@ class Scout:
             by_season = {s: {"value": _round(r[chk.metric]), "peer_median": _round(r.peer_median),
                              "z": _round(r.z, 2), "matches": int(r.matches), "division": int(r.division)}
                          for s, r, _w in parts}
-            text = chk.template.format(cur=_fmt(chk.metric, ref[chk.metric]), med=_fmt(chk.metric, ref.peer_median))
+            text = _with_club(store.club_name(club_id),
+                              chk.template.format(cur=_fmt(chk.metric, ref[chk.metric]), med=_fmt(chk.metric, ref.peer_median)))
             if len(parts) > 1 or parts[0][0] != season:
                 text += " " + _season_note(by_season, season, chk.metric)
             if new_manager and prev in seasons_used:

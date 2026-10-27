@@ -23,8 +23,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from mcp.server import MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp_server.compat import ToolError, make_server, run_server
 
 from analytics.api import Analyst, NotFound
 
@@ -40,11 +39,12 @@ Rules for agents:
 - Respect confidence: 'high' findings can be stated as fact; 'medium' are things to watch; never state 'low' as fact.
 - Clubs and players can be given by id (C02, P00032) or by name.
 - Live tools take clock_s (seconds of play since kick-off) and only see events up to that moment.
-Typical flow: overview -> matchup_report(home, away) -> scout_findings / goals_breakdown / player_profile for detail
+Typical flow: overview -> matchup_report(home, away) -> team_news / scout_findings / goals_breakdown /
+player_profile / match_lineup for detail
 -> during the match live_state, live_key_moments, live_predictions -> get_events to verify claims.
 """
 
-mcp = MCPServer("match-intelligence", instructions=INSTRUCTIONS)
+mcp = make_server("match-intelligence", INSTRUCTIONS)
 _analyst: Analyst | None = None
 
 
@@ -55,16 +55,23 @@ def analyst() -> Analyst:
     return _analyst
 
 
+_last_cap: float | None = None
+
+
 def live_cap(clock_s: float) -> float:
-    """Clamp a requested match clock to the live feed's current clock, if a feed is running."""
+    """Clamp a requested match clock to the live feed's current clock, if a feed is running.
+    If the clock file is momentarily locked or half-written, use the last good value
+    (or 0 if there is none yet) - never let an agent see past the feed."""
+    global _last_cap
     path = Path(DATA_DIR) / "runtime" / "live_clock.json"
-    if path.exists():
-        try:
-            cap = float(json.loads(path.read_text(encoding="utf-8"))["clock_s"])
-            return min(float(clock_s), cap)
-        except (ValueError, KeyError, json.JSONDecodeError):
-            pass
-    return float(clock_s)
+    if not path.exists():
+        _last_cap = None
+        return float(clock_s)
+    try:
+        _last_cap = float(json.loads(path.read_text(encoding="utf-8"))["clock_s"])
+    except (OSError, ValueError, KeyError, json.JSONDecodeError):
+        pass
+    return min(float(clock_s), _last_cap if _last_cap is not None else 0.0)
 
 
 def _call(fn, *args, **kwargs) -> Any:
@@ -85,8 +92,8 @@ def overview() -> dict:
 
 
 @mcp.tool()
-def league_table(season: str = "current", division: int = 1, after_round: int | None = None) -> dict:
-    """League table with zones (Champions League, Europa League, relegation / promotion, playoffs).
+def league_table(season: str | None = "current", division: int = 1, after_round: int | None = None) -> dict:
+    """League table with zones (Continental Cup, Continental Shield, relegation / promotion, playoffs).
     season: '2025-26', '2026-27', 'current' or 'previous'. division: 1 (Crown League) or 2 (Crown League Two)."""
     return _call(analyst().league_table, season, division, after_round)
 
@@ -105,23 +112,23 @@ def upcoming_fixtures() -> dict:
 
 # ---------------------------------------------------------------- clubs and players
 @mcp.tool()
-def club_profile(club: str, season: str = "current", venue: str = "all", last_n: int | None = None) -> dict:
+def club_profile(club: str, season: str | None = "current", venue: str | None = "all", last_n: int | None = None) -> dict:
     """A club's season: manager, formation, record, home/away splits, attack, defence, style
     (possession, pressing, directness, flanks), discipline, formations used and results, recent form.
     Every metric has a league percentile. venue: 'all', 'home' or 'away'. last_n: only the last N matches."""
-    return _call(analyst().club_profile, club, season, venue, last_n)
+    return _call(analyst().club_profile, club, season, venue or "all", last_n)
 
 
 @mcp.tool()
-def goals_breakdown(club: str, side: str = "conceded", season: str = "current", venue: str = "all") -> dict:
+def goals_breakdown(club: str, side: str | None = "conceded", season: str | None = "current", venue: str | None = "all") -> dict:
     """How a club concedes (side='conceded') or scores (side='scored'): by phase (open play, counter, corner,
     free kick, penalty, throw-in, own goal) vs the league share, by 15-minute period, by game state and zone,
     plus the list of goals with scorer, assist and event references."""
-    return _call(analyst().goals_breakdown, club, side, season, venue)
+    return _call(analyst().goals_breakdown, club, side or "conceded", season, venue or "all")
 
 
 @mcp.tool()
-def player_profile(player: str, season: str = "current") -> dict:
+def player_profile(player: str, season: str | None = "current") -> dict:
     """A player's per-90 numbers and rates for both seasons with percentiles vs the same position:
     passing (incl. completion above expected), progression, threat (xT), shooting (xG), ball security
     under pressure, duels, discipline, goalkeeping."""
@@ -129,25 +136,47 @@ def player_profile(player: str, season: str = "current") -> dict:
 
 
 @mcp.tool()
-def player_event_map(player: str, season: str = "current", kinds: list[str] | None = None) -> dict:
+def player_event_map(player: str, season: str | None = "current", kinds: list[str] | None = None) -> dict:
     """Where on the pitch and when in the match a player's events happen.
     kinds: any of 'dispossessed', 'turnover', 'foul', 'aerial_duel' (default: dispossessed and turnover)."""
     return _call(analyst().player_event_map, player, season, tuple(kinds or ("dispossessed", "turnover")))
 
 
 @mcp.tool()
-def squad_report(club: str, season: str = "current") -> dict:
+def squad_report(club: str, season: str | None = "current") -> dict:
     """Every player who has played for the club this season, with minutes and position-relevant metrics
     and percentiles."""
     return _call(analyst().squad_report, club, season)
 
 
 @mcp.tool()
-def scout_findings(club: str, season: str = "current", kind: str = "all", min_confidence: str = "medium") -> dict:
+def scout_findings(club: str, season: str | None = "current", kind: str | None = "all", min_confidence: str | None = "medium") -> dict:
     """Statistically unusual weaknesses, strengths and tendencies of a club and its players, compared with
     peers, adjusted for team style and small samples, blending last season when this season is short.
     kind: 'all', 'weaknesses', 'strengths' or 'tendencies'. min_confidence: 'high', 'medium' or 'low'."""
-    return _call(analyst().scout_findings, club, season, kind, min_confidence)
+    return _call(analyst().scout_findings, club, season, kind or "all", min_confidence or "medium")
+
+
+@mcp.tool()
+def team_news(club: str, match_id: str | None = None) -> dict:
+    """A club's published team news before its next match (or before match_id): who is injured, suspended
+    or doubtful, the reason, expected return or matches left to serve, and whether they are regular starters."""
+    return _call(analyst().team_news, club, match_id)
+
+
+@mcp.tool()
+def injuries(club: str | None = None, player: str | None = None, season: str | None = "current") -> dict:
+    """Injury record for a club or a player: each injury with type, cause (match challenge, muscle, training),
+    expected and actual return; counts by type; days lost. For a club also its suspensions.
+    season: 'current', 'previous', '2025-26', '2026-27' or 'all'."""
+    return _call(analyst().injuries, club, player, None if season in (None, "current") else season)
+
+
+@mcp.tool()
+def match_lineup(club: str, match_id: str | None = "last", season: str | None = "current") -> dict:
+    """The line-up a club used in a match (default: its last match): formation, starting XI with positions
+    and minutes, substitutes used, cards, injuries in the match, players rested, and who was missing."""
+    return _call(analyst().match_lineup, club, match_id or "last", None if season in (None, "current") else season)
 
 
 @mcp.tool()
@@ -157,10 +186,11 @@ def head_to_head(club_a: str, club_b: str) -> dict:
 
 
 @mcp.tool()
-def matchup_report(home: str, away: str, season: str = "current", detail: str = "compact") -> dict:
+def matchup_report(home: str, away: str, season: str | None = "current", detail: str | None = "compact") -> dict:
     """Pre-match report: what's at stake, midweek European games, managers, form, head-to-head, style
-    comparison, EDGES (one side's weakness vs the other's matching strength) and PREDICTIONS that can be
-    checked live, key players and probable line-ups. detail: 'compact' (default) or 'full'."""
+    comparison, team news (injuries, suspensions, doubts), EDGES (one side's weakness vs the other's matching
+    strength) and PREDICTIONS that can be checked live, key players and probable line-ups (absentees replaced).
+    detail: 'compact' (default) or 'full'."""
     return _call(analyst().matchup, home, away, season, None, detail != "full")
 
 
@@ -191,8 +221,16 @@ def live_predictions(clock_s: float) -> dict:
 @mcp.tool()
 def live_player(player: str, clock_s: float) -> dict:
     """One player's live line for player-focus mode: touches, passes, threat, shots, times pressed,
-    dispossessions, duels, cards, fastest shot, hardest completed pass."""
+    dispossessions, duels, cards, fastest shot, hardest completed pass, and his match rating so far
+    with the actions behind it."""
     return _call(analyst().live_player, player, live_cap(clock_s))
+
+
+@mcp.tool()
+def live_ratings(clock_s: float) -> dict:
+    """Match ratings (0-10) of every player who has played so far, best first per team, each with the
+    top reasons (e.g. goal +1.0, 3 key passes +0.36). Everyone starts at 6.0."""
+    return _call(analyst().live_ratings, live_cap(clock_s))
 
 
 # ---------------------------------------------------------------- evidence
@@ -215,10 +253,7 @@ def main() -> None:
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
-    if args.http:
-        mcp.run(transport="streamable-http", host=args.host, port=args.port, json_response=True, stateless_http=True)
-    else:
-        mcp.run(transport="stdio")
+    run_server(mcp, args.http, args.host, args.port)
 
 
 if __name__ == "__main__":

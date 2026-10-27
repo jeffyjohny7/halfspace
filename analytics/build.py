@@ -6,6 +6,7 @@ Outputs (data/derived/):
   player_match.parquet  one row per player per match (counts; per-90s derived later)
   team_match.parquet    one row per team per match
   refs.parquet        example event references per subject and kind (evidence)
+  player_ratings.parquet  every player's match rating in every match (rating.py)
 
 Everything here reads data/public only.
 """
@@ -18,7 +19,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from . import xt
+from . import rating, xt
 from .store import Store
 
 FINAL_THIRD_X = 70.0
@@ -471,7 +472,7 @@ def build_all(data_dir: str = "data", verbose: bool = True) -> dict:
     del train_ev
     store.derived_path("xt_grid.json").write_text(json.dumps(xt.to_json(grid, seasons[0]), indent=1),
                                                   encoding="utf-8")
-    shots_all, pm_all, tm_all, refs_all = [], [], [], []
+    shots_all, pm_all, tm_all, refs_all, ratings_all = [], [], [], [], []
     for season in seasons:
         log(f"Building tables for {season}...")
         ev = enrich(store.events(season), grid, matches)
@@ -480,6 +481,10 @@ def build_all(data_dir: str = "data", verbose: bool = True) -> dict:
         pm_all.append(build_player_match(ev, shots, store.lineups, season, matches))
         tm_all.append(build_team_match(ev, shots, matches, season))
         refs_all.append(build_refs(ev, shots, season))
+        lu = store.lineups[store.lineups.season == season]
+        r = rating.match_ratings(rating.actions(ev, shots, lu), lu)
+        r["season"] = season
+        ratings_all.append(r)
         if season == seasons[0]:
             from .live import compute_window_reference
             top = ev[ev.match_id.astype(str).str.contains("-D1-")]
@@ -491,6 +496,7 @@ def build_all(data_dir: str = "data", verbose: bool = True) -> dict:
         "player_match": pd.concat(pm_all, ignore_index=True),
         "team_match": pd.concat(tm_all, ignore_index=True),
         "refs": pd.concat(refs_all, ignore_index=True),
+        "player_ratings": pd.concat(ratings_all, ignore_index=True),
     }
     for name, df in out.items():
         df.to_parquet(store.derived_path(f"{name}.parquet"), index=False)

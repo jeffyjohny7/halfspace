@@ -8,7 +8,7 @@ import pandas as pd
 from .build import TIME_BUCKETS, zone
 from .metrics import PLAYER_METRICS, TEAM_METRICS, team_season_table, team_values
 from .store import Store
-from .util import clean, pct_rank
+from .util import clean, competition_name, pct_rank
 
 PHASE_LABELS = {
     "open_play": "Open play", "counter": "Counter-attack", "corner": "Corner", "free_kick": "Free kick (delivery)",
@@ -60,9 +60,9 @@ def league_table(store: Store, season: str, division: int = 1, after_round: int 
         zone_ = None
         if division == 1:
             if i <= rules["champions_league_spots"]:
-                zone_ = "Champions League"
+                zone_ = competition_name("champions_league")
             elif i <= rules["champions_league_spots"] + rules["europa_league_spots"]:
-                zone_ = "Europa League"
+                zone_ = competition_name("europa_league")
             elif i > n - rules["relegation_spots"]:
                 zone_ = "Relegation"
         else:
