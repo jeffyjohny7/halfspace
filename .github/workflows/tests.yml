@@ -16,5 +16,5 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: uv sync --locked
-      - name: Tests (no Azure needed: offline and scripted-model runs, real MCP tools)
+      - name: Tests (no Azure needed)
         run: uv run pytest -q
